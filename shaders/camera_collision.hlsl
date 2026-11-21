@@ -34,10 +34,21 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float4 surface_world_h = mul(surface_clip, inverse_view_projection);
     const float3 surface_world = surface_world_h.xyz / max(abs(surface_world_h.w), 1.0e-8f);
     const float signed_distance = dot(particle.position.xyz - surface_world, normal);
+
+    // A single frontmost depth layer cannot classify points deep behind the
+    // captured surface. Limit the correction to a thin contact band to avoid
+    // projecting every interior particle onto the camera-facing shell.
+    const float contact_band = particle_radius * 4.0f + pushout;
+    if (signed_distance < -contact_band)
+    {
+        g_particles_out[index] = particle;
+        return;
+    }
+
     const float penetration = particle_radius + pushout - signed_distance;
     if (penetration > 0.0f)
     {
-        particle.position.xyz += normal * penetration;
+        particle.position.xyz += normal * min(penetration, contact_band);
         const float normal_velocity = dot(particle.velocity.xyz, normal);
         if (normal_velocity < 0.0f)
             particle.velocity.xyz -= normal * normal_velocity * (1.0f - velocity_friction);
