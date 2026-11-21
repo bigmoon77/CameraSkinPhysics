@@ -82,9 +82,10 @@ namespace csp
             adapter->GetDesc1(&description);
             if ((description.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0) continue;
             if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device_)))) break;
+            if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device_)))) break;
             adapter.Reset();
         }
-        if (!device_ && FAILED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device_)))) return false;
+        if (!device_ && FAILED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device_)))) return false;
 
         D3D12_COMMAND_QUEUE_DESC queue_description{};
         queue_description.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
