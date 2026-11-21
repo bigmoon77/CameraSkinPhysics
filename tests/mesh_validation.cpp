@@ -59,6 +59,60 @@ int main()
     }
     check(surface_edges_valid, "surface edge indices and rest lengths must be valid");
 
+    bool surface_edges_sorted_unique = true;
+    for (std::size_t edge_index = 1; edge_index < surface.edges.size(); ++edge_index)
+    {
+        const csp::surface_edge& previous = surface.edges[edge_index - 1];
+        const csp::surface_edge& current = surface.edges[edge_index];
+        if (previous.indices[0] > current.indices[0]
+            || (previous.indices[0] == current.indices[0]
+                && previous.indices[1] >= current.indices[1]))
+        {
+            surface_edges_sorted_unique = false;
+            break;
+        }
+    }
+    check(surface_edges_sorted_unique, "surface edges must be sorted and unique");
+
+    const csp::sphere_mesh coarse_surface = csp::make_sphere_mesh(8, 12);
+    check(coarse_surface.vertices.size() == 96, "coarse sphere vertex count must match its resolution");
+    check(coarse_surface.indices.size() == 504, "coarse sphere index count must match its resolution");
+    check(coarse_surface.edges.size() == 264, "coarse sphere edge count must match its resolution");
+    check(coarse_surface.incident_edges.size() == 528,
+        "coarse sphere CSR must contain two entries per unique edge");
+
+    std::uint64_t coarse_incidence_total = 0;
+    bool coarse_incidence_valid = true;
+    for (std::size_t vertex_index = 0; vertex_index < coarse_surface.edge_incidence_ranges.size(); ++vertex_index)
+    {
+        const csp::mesh_uint2 range = coarse_surface.edge_incidence_ranges[vertex_index];
+        if (static_cast<std::size_t>(range.x) + range.y > coarse_surface.incident_edges.size())
+        {
+            coarse_incidence_valid = false;
+            break;
+        }
+        coarse_incidence_total += range.y;
+        for (std::uint32_t offset = 0; offset < range.y; ++offset)
+        {
+            const std::uint32_t edge_index = coarse_surface.incident_edges[range.x + offset];
+            if (edge_index >= coarse_surface.edges.size())
+            {
+                coarse_incidence_valid = false;
+                break;
+            }
+            const csp::surface_edge& edge = coarse_surface.edges[edge_index];
+            if (edge.indices[0] != vertex_index && edge.indices[1] != vertex_index)
+            {
+                coarse_incidence_valid = false;
+                break;
+            }
+        }
+        if (!coarse_incidence_valid) break;
+    }
+    check(coarse_incidence_valid, "coarse sphere edge CSR must reference incident edges");
+    check(coarse_incidence_total == coarse_surface.edges.size() * 2ull,
+        "coarse sphere CSR incidence count must match its edge count");
+
     std::uint64_t surface_incidence_total = 0;
     bool surface_incidence_valid = true;
     for (std::size_t vertex_index = 0; vertex_index < surface.edge_incidence_ranges.size(); ++vertex_index)
