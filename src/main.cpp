@@ -11,9 +11,36 @@
 namespace
 {
     constexpr wchar_t window_class_name[] = L"CameraSkinPhysicsWindow";
+    csp::d3d12_renderer* active_renderer = nullptr;
+
+    void update_window_title(HWND window)
+    {
+        if (active_renderer == nullptr) return;
+        const wchar_t* mode_name = active_renderer->get_solver_mode() == csp::solver_mode::camera_surface
+            ? L"Camera surface particles"
+            : L"Tetrahedral XPBD";
+        const std::wstring title = std::wstring(L"CameraSkinPhysics | ") + mode_name
+            + L" | F1: XPBD  F2: Camera surface | benchmark in output/";
+        SetWindowTextW(window, title.c_str());
+    }
 
     LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
     {
+        if (message == WM_KEYDOWN && active_renderer != nullptr)
+        {
+            if (wparam == VK_F1)
+            {
+                active_renderer->set_solver_mode(csp::solver_mode::tetrahedral_xpbd);
+                update_window_title(window);
+                return 0;
+            }
+            if (wparam == VK_F2)
+            {
+                active_renderer->set_solver_mode(csp::solver_mode::camera_surface);
+                update_window_title(window);
+                return 0;
+            }
+        }
         if (message == WM_DESTROY)
         {
             PostQuitMessage(0);
@@ -38,7 +65,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
     const DWORD window_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     AdjustWindowRect(&window_rect, window_style, FALSE);
     HWND window = CreateWindowExW(0, window_class_name,
-        L"CameraSkinPhysics - GPU XPBD + Depth Collision",
+        L"CameraSkinPhysics - GPU Soft Body Comparison",
         window_style, CW_USEDEFAULT, CW_USEDEFAULT,
         window_rect.right - window_rect.left, window_rect.bottom - window_rect.top,
         nullptr, nullptr, instance, nullptr);
@@ -47,14 +74,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
     try
     {
         const csp::sphere_mesh surface_mesh = csp::make_sphere_mesh();
-        if (surface_mesh.vertices.size() != 100000)
+        if (surface_mesh.vertices.size() != 100000 || surface_mesh.edges.size() != 299200
+            || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size())
         {
-            MessageBoxW(window, L"Sphere vertex count validation failed.", L"CameraSkinPhysics",
+            MessageBoxW(window, L"Sphere surface topology validation failed.", L"CameraSkinPhysics",
                 MB_ICONERROR | MB_OK);
             return -1;
         }
-        const csp::tetrahedral_mesh volume_mesh = csp::make_tetrahedral_mesh(surface_mesh);
 
+        const csp::tetrahedral_mesh volume_mesh = csp::make_tetrahedral_mesh(surface_mesh);
         RECT client_rect{};
         GetClientRect(window, &client_rect);
         csp::d3d12_renderer renderer;
@@ -64,18 +92,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
             surface_mesh, volume_mesh))
         {
             MessageBoxW(window,
-                L"Direct3D 12 initialization failed. Check the GPU driver and the DXC shader build.",
+                L"Direct3D 12 initialization failed. Check the GPU driver and DXC shader build.",
                 L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
             return -1;
         }
 
-        const std::wstring title = L"CameraSkinPhysics | 100,000 surface vertices per body | "
-            + std::to_wstring(volume_mesh.particles.size()) + L" particles | "
-            + std::to_wstring(volume_mesh.tetrahedra.size()) + L" tetrahedra | "
-            L"GPU benchmark: output/benchmark.csv";
-        SetWindowTextW(window, title.c_str());
-
+        active_renderer = &renderer;
+        update_window_title(window);
         ShowWindow(window, show_command);
+
         MSG message{};
         std::chrono::steady_clock::time_point previous_frame = std::chrono::steady_clock::now();
         while (message.message != WM_QUIT)
@@ -93,15 +118,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
                 renderer.render(delta_time);
             }
         }
+
+        active_renderer = nullptr;
         renderer.wait_gpu();
         return static_cast<int>(message.wParam);
     }
     catch (const std::exception& exception)
     {
+        active_renderer = nullptr;
         const std::string message_text = exception.what();
         const int required = MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, nullptr, 0);
         std::wstring wide_message(static_cast<std::size_t>(std::max(required, 1)), L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, wide_message.data(), required);
+        if (required > 0)
+            MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, wide_message.data(), required);
         MessageBoxW(window, wide_message.c_str(), L"CameraSkinPhysics error", MB_ICONERROR | MB_OK);
         return -1;
     }
