@@ -5,6 +5,7 @@ StructuredBuffer<Particle> g_particles_in : register(t2);
 RWStructuredBuffer<Particle> g_particles_out : register(u0);
 cbuffer CameraCollisionConstants : register(b0)
 {
+    row_major float4x4 view_projection;
     row_major float4x4 inverse_view_projection;
     uint particle_count;
     uint2 viewport_size;
@@ -19,7 +20,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const uint index = dispatch_id.x;
     if (index >= particle_count) return;
     Particle particle = g_particles_in[index];
-    const float4 clip = mul(float4(particle.position.xyz, 1.0f), transpose(inverse_view_projection));
+    const float4 clip = mul(float4(particle.position.xyz, 1.0f), view_projection);
     if (clip.w <= 0.0f) { g_particles_out[index] = particle; return; }
     const float3 ndc = clip.xyz / clip.w;
     const float2 uv = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f);
