@@ -1212,7 +1212,10 @@ namespace csp
 
     void d3d12_renderer::capture_body(std::uint32_t capture_index, std::uint32_t body_index)
     {
-        const compute_state::gpu_body& body = compute_->bodies[body_index];
+        const D3D12_VERTEX_BUFFER_VIEW& vertex_view =
+            solver_mode_ == solver_mode::camera_surface
+                ? compute_->camera_bodies[body_index].vertex_view
+                : compute_->bodies[body_index].vertex_view;
         D3D12_CPU_DESCRIPTOR_HANDLE rtv = capture_rtv_heap_->GetCPUDescriptorHandleForHeapStart();
         rtv.ptr += static_cast<SIZE_T>(capture_index) * capture_rtv_descriptor_size_;
         D3D12_CPU_DESCRIPTOR_HANDLE dsv = capture_dsv_heap_->GetCPUDescriptorHandleForHeapStart();
@@ -1233,7 +1236,7 @@ namespace csp
         command_list_->SetGraphicsRootSignature(capture_root_signature_.Get());
         command_list_->SetPipelineState(capture_pipeline_.Get());
         command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        command_list_->IASetVertexBuffers(0, 1, &body.vertex_view);
+        command_list_->IASetVertexBuffers(0, 1, &vertex_view);
         command_list_->IASetIndexBuffer(&index_buffer_view_);
 
         using namespace DirectX;
