@@ -100,7 +100,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
     {
         const std::string message_text = exception.what();
         const int required = MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, nullptr, 0);
-        std::wstring wide_message(static_cast<std::size_t>(std::max(required, 1)), L'\\0');
+        std::wstring wide_message(static_cast<std::size_t>(std::max(required, 1)), L'\0');
         MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, wide_message.data(), required);
         MessageBoxW(window, wide_message.c_str(), L"CameraSkinPhysics error", MB_ICONERROR | MB_OK);
         return -1;
