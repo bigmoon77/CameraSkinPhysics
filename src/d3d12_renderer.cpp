@@ -154,7 +154,7 @@ namespace csp
             float particle_radius;
             float pushout;
             float velocity_friction;
-            float padding;
+            float contact_band;
             std::uint32_t padding2;
         };
         static_assert(sizeof(camera_collision_constants) == 160);
@@ -1337,6 +1337,7 @@ namespace csp
         collision_constants.particle_radius = use_camera_surface ? 0.012f : 0.035f;
         collision_constants.pushout = use_camera_surface ? 0.006f : 0.012f;
         collision_constants.velocity_friction = 0.15f;
+        collision_constants.contact_band = use_camera_surface ? 0.10f : 0.16f;
 
         for (std::uint32_t body_index = 0; body_index < 2; ++body_index)
         {
