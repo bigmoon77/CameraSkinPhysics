@@ -132,6 +132,11 @@ int main()
     for (std::size_t index = 0; index < volume.surface_to_particle.size(); ++index)
     {
         check(volume.surface_to_particle[index] < volume.particles.size(), "surface mapping must reference a valid particle");
+        if (volume.surface_to_particle[index] < volume.incidence_ranges.size())
+        {
+            check(volume.incidence_ranges[volume.surface_to_particle[index]].y > 0,
+                "surface mapping must reference a particle connected to at least one tetrahedron");
+        }
         const auto& offset = volume.surface_offsets[index];
         check(finite_value(offset[0]) && finite_value(offset[1]) && finite_value(offset[2]),
             "surface rest offsets must be finite");
