@@ -43,6 +43,7 @@ if(WIN32 AND CSP_BUILD_D3D12_APP)
     endfunction()
 
     compile_hlsl(integrate_particles.hlsl main cs_6_0 integrate_particles)
+    compile_hlsl(clear_lambdas.hlsl main cs_6_0 clear_lambdas)
     compile_hlsl(xpbd_tetrahedra.hlsl main cs_6_0 xpbd_tetrahedra)
     compile_hlsl(xpbd_gather.hlsl main cs_6_0 xpbd_gather)
     compile_hlsl(camera_collision.hlsl main cs_6_0 camera_collision)
