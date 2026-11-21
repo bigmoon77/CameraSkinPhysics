@@ -64,7 +64,8 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
         g_inverse_masses[ids.w]
     };
 
-    float3 correction[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float3 correction[4] = {float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f),
+        float3(0.0f, 0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f)};
 
     // XPBD tetrahedron volume constraint.
     const float constraint = signed_volume(p[0], p[1], p[2], p[3]) - tet.rest_volume;
