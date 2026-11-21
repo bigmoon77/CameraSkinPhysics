@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
