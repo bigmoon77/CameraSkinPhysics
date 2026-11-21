@@ -2,6 +2,7 @@
 #include "sphere_mesh.hpp"
 #include "tetrahedral_mesh.hpp"
 
+#include <chrono>
 #include <string>
 #include <windows.h>
 
@@ -34,52 +35,72 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
     RECT window_rect{0, 0, 1440, 900};
     const DWORD window_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     AdjustWindowRect(&window_rect, window_style, FALSE);
-    HWND window = CreateWindowExW(0, window_class_name, L"CameraSkinPhysics - Direct3D 12",
+    HWND window = CreateWindowExW(0, window_class_name,
+        L"CameraSkinPhysics - GPU XPBD + Depth Collision",
         window_style, CW_USEDEFAULT, CW_USEDEFAULT,
         window_rect.right - window_rect.left, window_rect.bottom - window_rect.top,
         nullptr, nullptr, instance, nullptr);
     if (window == nullptr) return -1;
 
-    const csp::sphere_mesh surface_mesh = csp::make_sphere_mesh();
-    if (surface_mesh.vertices.size() != 100000)
+    try
     {
-        MessageBoxW(window, L"Sphere vertex count validation failed.", L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
+        const csp::sphere_mesh surface_mesh = csp::make_sphere_mesh();
+        if (surface_mesh.vertices.size() != 100000)
+        {
+            MessageBoxW(window, L"Sphere vertex count validation failed.", L"CameraSkinPhysics",
+                MB_ICONERROR | MB_OK);
+            return -1;
+        }
+        const csp::tetrahedral_mesh volume_mesh = csp::make_tetrahedral_mesh(surface_mesh);
+
+        RECT client_rect{};
+        GetClientRect(window, &client_rect);
+        csp::d3d12_renderer renderer;
+        if (!renderer.initialize(window,
+            static_cast<std::uint32_t>(client_rect.right - client_rect.left),
+            static_cast<std::uint32_t>(client_rect.bottom - client_rect.top),
+            surface_mesh, volume_mesh))
+        {
+            MessageBoxW(window,
+                L"Direct3D 12 initialization failed. Check the GPU driver and the DXC shader build.",
+                L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
+            return -1;
+        }
+
+        const std::wstring title = L"CameraSkinPhysics | 100,000 surface vertices per body | "
+            + std::to_wstring(volume_mesh.particles.size()) + L" particles | "
+            + std::to_wstring(volume_mesh.tetrahedra.size()) + L" tetrahedra | "
+            L"GPU benchmark: output/benchmark.csv";
+        SetWindowTextW(window, title.c_str());
+
+        ShowWindow(window, show_command);
+        MSG message{};
+        std::chrono::steady_clock::time_point previous_frame = std::chrono::steady_clock::now();
+        while (message.message != WM_QUIT)
+        {
+            if (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+            else
+            {
+                const std::chrono::steady_clock::time_point current_frame = std::chrono::steady_clock::now();
+                const float delta_time = std::chrono::duration<float>(current_frame - previous_frame).count();
+                previous_frame = current_frame;
+                renderer.render(delta_time);
+            }
+        }
+        renderer.wait_gpu();
+        return static_cast<int>(message.wParam);
+    }
+    catch (const std::exception& exception)
+    {
+        const std::string message_text = exception.what();
+        const int required = MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, nullptr, 0);
+        std::wstring wide_message(static_cast<std::size_t>(std::max(required, 1)), L'\\0');
+        MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, wide_message.data(), required);
+        MessageBoxW(window, wide_message.c_str(), L"CameraSkinPhysics error", MB_ICONERROR | MB_OK);
         return -1;
     }
-    const csp::tetrahedral_mesh volume_mesh = csp::make_tetrahedral_mesh(surface_mesh);
-
-    RECT client_rect{};
-    GetClientRect(window, &client_rect);
-    csp::d3d12_renderer renderer;
-    if (!renderer.initialize(window,
-        static_cast<std::uint32_t>(client_rect.right - client_rect.left),
-        static_cast<std::uint32_t>(client_rect.bottom - client_rect.top), surface_mesh))
-    {
-        MessageBoxW(window, L"Direct3D 12 initialization or sphere pipeline creation failed.",
-            L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
-        return -1;
-    }
-
-    const std::wstring title = L"CameraSkinPhysics - D3D12 | Surface vertices: "
-        + std::to_wstring(surface_mesh.vertices.size())
-        + L" | Simulation particles: " + std::to_wstring(volume_mesh.particles.size())
-        + L" | Tetrahedra: " + std::to_wstring(volume_mesh.tetrahedra.size());
-    SetWindowTextW(window, title.c_str());
-
-    ShowWindow(window, show_command);
-    MSG message{};
-    while (message.message != WM_QUIT)
-    {
-        if (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
-        {
-            TranslateMessage(&message);
-            DispatchMessageW(&message);
-        }
-        else
-        {
-            renderer.render();
-        }
-    }
-    renderer.wait_gpu();
-    return static_cast<int>(message.wParam);
 }
