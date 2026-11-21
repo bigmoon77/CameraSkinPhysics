@@ -68,7 +68,7 @@ namespace csp
             const D3D12_RESOURCE_DESC description = make_buffer_desc(size, flags);
             Microsoft::WRL::ComPtr<ID3D12Resource> resource;
             if (FAILED(device->CreateCommittedResource(&heap_properties, D3D12_HEAP_FLAG_NONE, &description,
-                initial_state, nullptr, IID_PPV_ARGS(&resource)))) return nullptr;
+                initial_state, nullptr, IID_PPV_ARGS(&resource)))) return {};
             return resource;
         }
 
@@ -77,11 +77,11 @@ namespace csp
         {
             Microsoft::WRL::ComPtr<ID3D12Resource> resource = create_buffer(device, size,
                 D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
-            if (!resource) return nullptr;
+            if (!resource) return {};
 
             void* mapped = nullptr;
             const D3D12_RANGE read_range{0, 0};
-            if (FAILED(resource->Map(0, &read_range, &mapped))) return nullptr;
+            if (FAILED(resource->Map(0, &read_range, &mapped))) return {};
             std::memcpy(mapped, data, static_cast<std::size_t>(size));
             resource->Unmap(0, nullptr);
             return resource;
@@ -645,7 +645,7 @@ namespace csp
 
         const auto upload_vector = [this](const auto& values) -> Microsoft::WRL::ComPtr<ID3D12Resource>
         {
-            if (values.empty()) return nullptr;
+            if (values.empty()) return {};
             return create_upload_buffer(device_.Get(), values.data(), values.size() * sizeof(values[0]));
         };
 
