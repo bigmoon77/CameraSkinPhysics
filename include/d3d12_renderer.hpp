@@ -102,7 +102,6 @@ namespace csp
         std::uint32_t frame_index_ = 0;
         std::uint64_t next_fence_value_ = 1;
         std::uint64_t timestamp_frequency_ = 0;
-        std::uint64_t frame_number_ = 0;
         HANDLE fence_event_ = nullptr;
         solver_mode solver_mode_ = solver_mode::tetrahedral_xpbd;
     };
