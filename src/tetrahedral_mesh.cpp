@@ -35,6 +35,29 @@ namespace csp
         {
             return dot(cross(subtract(b, a), subtract(c, a)), subtract(d, a)) / 6.0f;
         }
+
+        bool calculate_barycentric(const float3& p0, const float3& p1, const float3& p2,
+            const float3& p3, const float3& point, float weights[4])
+        {
+            const float3 e1 = subtract(p1, p0);
+            const float3 e2 = subtract(p2, p0);
+            const float3 e3 = subtract(p3, p0);
+            const float3 relative = subtract(point, p0);
+            const float determinant = dot(e1, cross(e2, e3));
+            if (std::abs(determinant) < 1.0e-10f) return false;
+
+            weights[1] = dot(relative, cross(e2, e3)) / determinant;
+            weights[2] = dot(e1, cross(relative, e3)) / determinant;
+            weights[3] = dot(e1, cross(e2, relative)) / determinant;
+            weights[0] = 1.0f - weights[1] - weights[2] - weights[3];
+            return true;
+        }
+
+        float3 get_position(const std::vector<simulation_particle>& particles, const std::uint32_t index)
+        {
+            const simulation_particle& particle = particles[index];
+            return {particle.position[0], particle.position[1], particle.position[2]};
+        }
     }
 
     tetrahedral_mesh make_tetrahedral_mesh(const sphere_mesh& surface, const std::uint32_t grid_resolution)
@@ -43,13 +66,20 @@ namespace csp
 
         tetrahedral_mesh result{};
         const std::size_t grid_count = static_cast<std::size_t>(grid_resolution) * grid_resolution * grid_resolution;
+        const std::uint32_t cell_resolution = grid_resolution - 1;
+        const std::size_t cell_count = static_cast<std::size_t>(cell_resolution) * cell_resolution * cell_resolution;
         std::vector<std::int32_t> grid_to_particle(grid_count, -1);
+        std::vector<std::array<std::int32_t, 6>> cell_to_tetrahedra(cell_count);
+        for (auto& cell : cell_to_tetrahedra) cell.fill(-1);
 
         const auto grid_index = [grid_resolution](std::uint32_t x, std::uint32_t y, std::uint32_t z) -> std::size_t
         {
             return (static_cast<std::size_t>(z) * grid_resolution + y) * grid_resolution + x;
         };
-
+        const auto cell_index = [cell_resolution](std::uint32_t x, std::uint32_t y, std::uint32_t z) -> std::size_t
+        {
+            return (static_cast<std::size_t>(z) * cell_resolution + y) * cell_resolution + x;
+        };
         const auto coordinate = [grid_resolution](std::uint32_t index) -> float
         {
             return -1.0f + 2.0f * static_cast<float>(index) / static_cast<float>(grid_resolution - 1);
@@ -112,18 +142,17 @@ namespace csp
                     }
                     if (!complete_cell) continue;
 
-                    for (const auto& local_indices : local_tetrahedra)
+                    const std::size_t current_cell_index = cell_index(x, y, z);
+                    for (std::uint32_t local_index = 0; local_index < 6; ++local_index)
                     {
+                        const std::uint32_t* local_indices = local_tetrahedra[local_index];
                         tetrahedron tet{};
                         for (std::uint32_t i = 0; i < 4; ++i) tet.indices[i] = corners[local_indices[i]];
 
-                        const auto get_position = [&result](std::uint32_t index) -> float3
-                        {
-                            const simulation_particle& p = result.particles[index];
-                            return {p.position[0], p.position[1], p.position[2]};
-                        };
-                        float volume = signed_volume(get_position(tet.indices[0]), get_position(tet.indices[1]),
-                            get_position(tet.indices[2]), get_position(tet.indices[3]));
+                        float volume = signed_volume(get_position(result.particles, tet.indices[0]),
+                            get_position(result.particles, tet.indices[1]),
+                            get_position(result.particles, tet.indices[2]),
+                            get_position(result.particles, tet.indices[3]));
                         if (std::abs(volume) < 1.0e-9f) continue;
                         if (volume < 0.0f)
                         {
@@ -133,6 +162,7 @@ namespace csp
                         tet.rest_volume = volume;
                         tet.compliance = 1.0e-7f;
                         tet.lambda = 0.0f;
+                        cell_to_tetrahedra[current_cell_index][local_index] = static_cast<std::int32_t>(result.tetrahedra.size());
                         result.tetrahedra.push_back(tet);
                         result.tetrahedron_indices.push_back({tet.indices[0], tet.indices[1], tet.indices[2], tet.indices[3]});
                     }
@@ -165,64 +195,114 @@ namespace csp
             }
         }
 
-        result.surface_to_particle.reserve(surface.vertices.size());
-        result.surface_offsets.reserve(surface.vertices.size());
+        result.surface_mappings.reserve(surface.vertices.size());
         const float grid_scale = static_cast<float>(grid_resolution - 1) * 0.5f;
+        constexpr float skin_inset = 0.88f;
         for (const vertex& surface_vertex : surface.vertices)
         {
-            const float target_x = surface_vertex.position[0] * 0.94f;
-            const float target_y = surface_vertex.position[1] * 0.94f;
-            const float target_z = surface_vertex.position[2] * 0.94f;
-            const auto to_grid = [grid_scale, grid_resolution](float value) -> std::uint32_t
+            const float3 surface_position{surface_vertex.position[0], surface_vertex.position[1], surface_vertex.position[2]};
+            const float3 target_position{surface_position.x * skin_inset,
+                surface_position.y * skin_inset, surface_position.z * skin_inset};
+
+            const auto to_cell = [grid_scale, cell_resolution](const float value) -> std::int32_t
             {
                 const float scaled = (value + 1.0f) * grid_scale;
-                return std::min(static_cast<std::uint32_t>(std::max(0.0f, std::round(scaled))), grid_resolution - 1);
+                const std::int32_t index = static_cast<std::int32_t>(std::floor(scaled));
+                return std::clamp(index, 0, static_cast<std::int32_t>(cell_resolution) - 1);
             };
-            const std::uint32_t center_x = to_grid(target_x);
-            const std::uint32_t center_y = to_grid(target_y);
-            const std::uint32_t center_z = to_grid(target_z);
+            const std::int32_t center_x = to_cell(target_position.x);
+            const std::int32_t center_y = to_cell(target_position.y);
+            const std::int32_t center_z = to_cell(target_position.z);
 
-            std::uint32_t best_index = 0;
+            surface_mapping mapping{};
+            bool found = false;
             float best_distance = std::numeric_limits<float>::max();
-            for (int radius = 0; radius <= 3 && best_distance == std::numeric_limits<float>::max(); ++radius)
+            surface_mapping best_mapping{};
+
+            for (std::int32_t radius = 0; radius <= 3 && !found; ++radius)
             {
-                for (int dz = -radius; dz <= radius; ++dz)
+                for (std::int32_t dz = -radius; dz <= radius; ++dz)
                 {
-                    for (int dy = -radius; dy <= radius; ++dy)
+                    for (std::int32_t dy = -radius; dy <= radius; ++dy)
                     {
-                        for (int dx = -radius; dx <= radius; ++dx)
+                        for (std::int32_t dx = -radius; dx <= radius; ++dx)
                         {
-                            const int gx = static_cast<int>(center_x) + dx;
-                            const int gy = static_cast<int>(center_y) + dy;
-                            const int gz = static_cast<int>(center_z) + dz;
-                            if (gx < 0 || gy < 0 || gz < 0
-                                || gx >= static_cast<int>(grid_resolution)
-                                || gy >= static_cast<int>(grid_resolution)
-                                || gz >= static_cast<int>(grid_resolution)) continue;
-                            const std::int32_t candidate = grid_to_particle[grid_index(
-                                static_cast<std::uint32_t>(gx), static_cast<std::uint32_t>(gy), static_cast<std::uint32_t>(gz))];
-                            if (candidate < 0 || incidence_counts[static_cast<std::size_t>(candidate)] == 0) continue;
-                            const simulation_particle& p = result.particles[static_cast<std::size_t>(candidate)];
-                            const float dxp = p.position[0] - target_x;
-                            const float dyp = p.position[1] - target_y;
-                            const float dzp = p.position[2] - target_z;
-                            const float distance = dxp * dxp + dyp * dyp + dzp * dzp;
-                            if (distance < best_distance)
+                            if (radius > 0 && std::max({std::abs(dx), std::abs(dy), std::abs(dz)}) != radius) continue;
+                            const std::int32_t cx = center_x + dx;
+                            const std::int32_t cy = center_y + dy;
+                            const std::int32_t cz = center_z + dz;
+                            if (cx < 0 || cy < 0 || cz < 0
+                                || cx >= static_cast<std::int32_t>(cell_resolution)
+                                || cy >= static_cast<std::int32_t>(cell_resolution)
+                                || cz >= static_cast<std::int32_t>(cell_resolution)) continue;
+
+                            const auto& candidates = cell_to_tetrahedra[cell_index(
+                                static_cast<std::uint32_t>(cx), static_cast<std::uint32_t>(cy), static_cast<std::uint32_t>(cz))];
+                            for (const std::int32_t candidate : candidates)
                             {
-                                best_distance = distance;
-                                best_index = static_cast<std::uint32_t>(candidate);
+                                if (candidate < 0) continue;
+                                const tetrahedron& tet = result.tetrahedra[static_cast<std::size_t>(candidate)];
+                                const float3 p0 = get_position(result.particles, tet.indices[0]);
+                                const float3 p1 = get_position(result.particles, tet.indices[1]);
+                                const float3 p2 = get_position(result.particles, tet.indices[2]);
+                                const float3 p3 = get_position(result.particles, tet.indices[3]);
+                                float weights[4]{};
+                                if (!calculate_barycentric(p0, p1, p2, p3, target_position, weights)) continue;
+
+                                constexpr float barycentric_tolerance = 1.0e-4f;
+                                if (weights[0] < -barycentric_tolerance || weights[1] < -barycentric_tolerance
+                                    || weights[2] < -barycentric_tolerance || weights[3] < -barycentric_tolerance
+                                    || weights[0] > 1.0f + barycentric_tolerance || weights[1] > 1.0f + barycentric_tolerance
+                                    || weights[2] > 1.0f + barycentric_tolerance || weights[3] > 1.0f + barycentric_tolerance) continue;
+
+                                const float3 center{
+                                    (p0.x + p1.x + p2.x + p3.x) * 0.25f,
+                                    (p0.y + p1.y + p2.y + p3.y) * 0.25f,
+                                    (p0.z + p1.z + p2.z + p3.z) * 0.25f
+                                };
+                                const float3 delta = subtract(center, target_position);
+                                const float distance = dot(delta, delta);
+                                if (distance < best_distance)
+                                {
+                                    best_distance = distance;
+                                    for (std::uint32_t i = 0; i < 4; ++i)
+                                    {
+                                        best_mapping.indices[i] = tet.indices[i];
+                                        best_mapping.weights[i] = weights[i];
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                if (best_distance < std::numeric_limits<float>::max()) found = true;
             }
-            result.surface_to_particle.push_back(best_index);
-            const simulation_particle& mapped_particle = result.particles[best_index];
-            result.surface_offsets.push_back({
-                surface_vertex.position[0] - mapped_particle.position[0],
-                surface_vertex.position[1] - mapped_particle.position[1],
-                surface_vertex.position[2] - mapped_particle.position[2]
-            });
+
+            if (!found)
+            {
+                throw std::runtime_error("Failed to map a render vertex into the tetrahedral volume. Increase grid resolution or adjust skin inset.");
+            }
+
+            const float3 interpolated{
+                best_mapping.weights[0] * result.particles[best_mapping.indices[0]].position[0]
+                    + best_mapping.weights[1] * result.particles[best_mapping.indices[1]].position[0]
+                    + best_mapping.weights[2] * result.particles[best_mapping.indices[2]].position[0]
+                    + best_mapping.weights[3] * result.particles[best_mapping.indices[3]].position[0],
+                best_mapping.weights[0] * result.particles[best_mapping.indices[0]].position[1]
+                    + best_mapping.weights[1] * result.particles[best_mapping.indices[1]].position[1]
+                    + best_mapping.weights[2] * result.particles[best_mapping.indices[2]].position[1]
+                    + best_mapping.weights[3] * result.particles[best_mapping.indices[3]].position[1],
+                best_mapping.weights[0] * result.particles[best_mapping.indices[0]].position[2]
+                    + best_mapping.weights[1] * result.particles[best_mapping.indices[1]].position[2]
+                    + best_mapping.weights[2] * result.particles[best_mapping.indices[2]].position[2]
+                    + best_mapping.weights[3] * result.particles[best_mapping.indices[3]].position[2]
+            };
+            best_mapping.rest_offset[0] = surface_position.x - interpolated.x;
+            best_mapping.rest_offset[1] = surface_position.y - interpolated.y;
+            best_mapping.rest_offset[2] = surface_position.z - interpolated.z;
+            best_mapping.rest_offset[3] = 0.0f;
+            mapping = best_mapping;
+            result.surface_mappings.push_back(mapping);
         }
 
         return result;
