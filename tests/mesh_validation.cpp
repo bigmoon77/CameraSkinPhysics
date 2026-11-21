@@ -87,8 +87,7 @@ int main()
     check(!volume.tetrahedra.empty(), "tetrahedral element set must not be empty");
     check(volume.inverse_masses.size() == volume.particles.size(), "inverse mass count must match particle count");
     check(volume.incidence_ranges.size() == volume.particles.size(), "incidence range count must match particle count");
-    check(volume.surface_to_particle.size() == surface.vertices.size(), "every render vertex must map to a simulation particle");
-    check(volume.surface_offsets.size() == surface.vertices.size(), "every render vertex must have a rest offset");
+    check(volume.surface_mappings.size() == surface.vertices.size(), "every render vertex must have a tetrahedral skin mapping");
 
     for (std::size_t index = 0; index < volume.particles.size(); ++index)
     {
@@ -129,17 +128,35 @@ int main()
             check(id < volume.particles.size(), "tetrahedron particle index must be valid");
     }
 
-    for (std::size_t index = 0; index < volume.surface_to_particle.size(); ++index)
+    for (std::size_t index = 0; index < volume.surface_mappings.size(); ++index)
     {
-        check(volume.surface_to_particle[index] < volume.particles.size(), "surface mapping must reference a valid particle");
-        if (volume.surface_to_particle[index] < volume.incidence_ranges.size())
+        const csp::surface_mapping& mapping = volume.surface_mappings[index];
+        float weight_sum = 0.0f;
+        float reconstructed_position[3] = {
+            mapping.rest_offset[0], mapping.rest_offset[1], mapping.rest_offset[2]
+        };
+        for (std::uint32_t corner = 0; corner < 4; ++corner)
         {
-            check(volume.incidence_ranges[volume.surface_to_particle[index]].y > 0,
-                "surface mapping must reference a particle connected to at least one tetrahedron");
+            check(mapping.indices[corner] < volume.particles.size(), "skin mapping particle index must be valid");
+            check(finite_value(mapping.weights[corner]), "skin mapping weights must be finite");
+            check(mapping.weights[corner] >= -1.0e-4f && mapping.weights[corner] <= 1.0001f,
+                "skin mapping weights must be inside the tetrahedron");
+            weight_sum += mapping.weights[corner];
+            if (mapping.indices[corner] < volume.particles.size())
+            {
+                const csp::simulation_particle& particle = volume.particles[mapping.indices[corner]];
+                for (std::uint32_t axis = 0; axis < 3; ++axis)
+                    reconstructed_position[axis] += mapping.weights[corner] * particle.position[axis];
+            }
         }
-        const auto& offset = volume.surface_offsets[index];
-        check(finite_value(offset[0]) && finite_value(offset[1]) && finite_value(offset[2]),
-            "surface rest offsets must be finite");
+        check(std::abs(weight_sum - 1.0f) < 1.0e-3f, "barycentric skin weights must sum to one");
+        check(finite_value(mapping.rest_offset[0]) && finite_value(mapping.rest_offset[1])
+            && finite_value(mapping.rest_offset[2]), "skin rest offsets must be finite");
+        for (std::uint32_t axis = 0; axis < 3; ++axis)
+        {
+            check(std::abs(reconstructed_position[axis] - surface.vertices[index].position[axis]) < 1.0e-4f,
+                "skin mapping must reproduce the undeformed surface exactly");
+        }
     }
 
     std::cout << "surface_vertices=" << surface.vertices.size()
