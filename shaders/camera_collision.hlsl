@@ -12,7 +12,7 @@ cbuffer CameraCollisionConstants : register(b0)
     float particle_radius;
     float pushout;
     float velocity_friction;
-    float padding;
+    float contact_band;
 };
 [numthreads(256, 1, 1)]
 void main(uint3 dispatch_id : SV_DispatchThreadID)
@@ -38,8 +38,8 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     // A single frontmost depth layer cannot classify points deep behind the
     // captured surface. Limit the correction to a thin contact band to avoid
     // projecting every interior particle onto the camera-facing shell.
-    const float contact_band = particle_radius * 4.0f + pushout;
-    if (signed_distance < -contact_band)
+    const float effective_contact_band = max(contact_band, particle_radius * 4.0f + pushout);
+    if (signed_distance < -effective_contact_band)
     {
         g_particles_out[index] = particle;
         return;
@@ -48,7 +48,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float penetration = particle_radius + pushout - signed_distance;
     if (penetration > 0.0f)
     {
-        particle.position.xyz += normal * min(penetration, contact_band);
+        particle.position.xyz += normal * min(penetration, effective_contact_band);
         const float normal_velocity = dot(particle.velocity.xyz, normal);
         if (normal_velocity < 0.0f)
             particle.velocity.xyz -= normal * normal_velocity * (1.0f - velocity_friction);
