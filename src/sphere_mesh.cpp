@@ -50,6 +50,17 @@ namespace csp
             }
         }
 
+        // Close the upper and lower boundary rings without introducing extra vertices.
+        for (std::uint32_t segment = 1; segment + 1 < segment_count; ++segment)
+        {
+            mesh.indices.insert(mesh.indices.end(), {0, segment + 1, segment});
+
+            const std::uint32_t bottom_base = (ring_count - 1) * segment_count;
+            mesh.indices.insert(mesh.indices.end(), {
+                bottom_base, bottom_base + segment, bottom_base + segment + 1
+            });
+        }
+
         std::vector<std::array<std::uint32_t, 2>> edge_pairs;
         edge_pairs.reserve(mesh.indices.size() / 2);
         for (std::size_t triangle = 0; triangle < mesh.indices.size(); triangle += 3)
