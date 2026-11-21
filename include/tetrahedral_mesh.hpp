@@ -27,6 +27,13 @@ namespace csp
         std::uint32_t y;
     };
 
+    struct surface_mapping
+    {
+        std::uint32_t indices[4];
+        float weights[4];
+        float rest_offset[4];
+    };
+
     struct tetrahedral_mesh
     {
         std::vector<simulation_particle> particles;
@@ -35,8 +42,7 @@ namespace csp
         std::vector<uint2> incidence_ranges;
         std::vector<std::uint32_t> incident_tetrahedra;
         std::vector<std::array<std::uint32_t, 4>> tetrahedron_indices;
-        std::vector<std::uint32_t> surface_to_particle;
-        std::vector<std::array<float, 3>> surface_offsets;
+        std::vector<surface_mapping> surface_mappings;
     };
 
     tetrahedral_mesh make_tetrahedral_mesh(const sphere_mesh& surface, std::uint32_t grid_resolution = 28);
