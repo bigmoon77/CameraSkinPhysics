@@ -9,7 +9,8 @@ cbuffer GatherConstants : register(b0)
 {
     uint particle_count;
     float max_correction;
-    float2 padding;
+    float delta_time;
+    float padding;
 };
 [numthreads(256, 1, 1)]
 void main(uint3 dispatch_id : SV_DispatchThreadID)
@@ -31,5 +32,6 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float correction_length = length(correction);
     if (correction_length > max_correction) correction *= max_correction / correction_length;
     particle.position.xyz += correction;
+    particle.velocity.xyz += correction / max(delta_time, 1.0e-6f);
     g_particles_out[particle_index] = particle;
 }
