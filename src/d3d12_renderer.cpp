@@ -133,7 +133,8 @@ namespace csp
         {
             std::uint32_t particle_count;
             float max_correction;
-            float padding[2];
+            float delta_time;
+            float padding;
         };
         static_assert(sizeof(gather_constants) == 16);
 
@@ -1028,7 +1029,9 @@ namespace csp
                     compute_->tetrahedron_count, sizeof(std::array<std::uint32_t, 4>));
                 write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
                     compute_->particle_count, sizeof(simulation_particle));
-                const gather_constants gather_values{compute_->particle_count, 0.025f, {0.0f, 0.0f}};
+                const gather_constants gather_values{
+                    compute_->particle_count, 0.025f, clamped_delta_time, 0.0f
+                };
                 dispatch_compute(compute_->gather_pipeline.Get(), gather_table,
                     &gather_values, 4, particle_groups);
                 transition_resource(body.particles[particle_output].Get(),
@@ -1145,7 +1148,9 @@ namespace csp
                 write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
 
-                const gather_constants gather_values{compute_->vertex_count, 0.008f, {0.0f, 0.0f}};
+                const gather_constants gather_values{
+                    compute_->vertex_count, 0.008f, clamped_delta_time, 0.0f
+                };
                 dispatch_compute(compute_->camera_surface_gather_pipeline.Get(), gather_table,
                     &gather_values, 4, particle_groups);
                 transition_resource(body.particles[particle_output].Get(),
