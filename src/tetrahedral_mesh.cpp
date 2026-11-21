@@ -166,6 +166,7 @@ namespace csp
         }
 
         result.surface_to_particle.reserve(surface.vertices.size());
+        result.surface_offsets.reserve(surface.vertices.size());
         const float grid_scale = static_cast<float>(grid_resolution - 1) * 0.5f;
         for (const vertex& surface_vertex : surface.vertices)
         {
@@ -200,7 +201,7 @@ namespace csp
                                 || gz >= static_cast<int>(grid_resolution)) continue;
                             const std::int32_t candidate = grid_to_particle[grid_index(
                                 static_cast<std::uint32_t>(gx), static_cast<std::uint32_t>(gy), static_cast<std::uint32_t>(gz))];
-                            if (candidate < 0) continue;
+                            if (candidate < 0 || incidence_counts[static_cast<std::size_t>(candidate)] == 0) continue;
                             const simulation_particle& p = result.particles[static_cast<std::size_t>(candidate)];
                             const float dxp = p.position[0] - target_x;
                             const float dyp = p.position[1] - target_y;
@@ -216,6 +217,12 @@ namespace csp
                 }
             }
             result.surface_to_particle.push_back(best_index);
+            const simulation_particle& mapped_particle = result.particles[best_index];
+            result.surface_offsets.push_back({
+                surface_vertex.position[0] - mapped_particle.position[0],
+                surface_vertex.position[1] - mapped_particle.position[1],
+                surface_vertex.position[2] - mapped_particle.position[2]
+            });
         }
 
         return result;
