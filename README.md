@@ -32,7 +32,7 @@ Each mode owns independent particle state. Switching to a mode for the first tim
 
 Each CSV contains per-frame CPU frame time/FPS, GPU simulation, capture, collision/skin, render intervals, total GPU time/FPS, particle count and tetrahedron count. The camera-surface run records zero tetrahedra because it has no tetrahedral volume mesh. The first timestamp interval includes solver passes and the initial skinning dispatch; the collision interval includes contact correction and the final skinning dispatch.
 
-The memory columns report the allocated simulation-buffer sizes for the selected solver and for both solvers resident in the process. These are exact D3D12 buffer resource widths summed from the created resources. They exclude shared graphics resources such as swap-chain buffers, depth/normal capture textures, the render index buffer, descriptor heaps and driver/runtime allocations.
+The memory columns report the allocated simulation-buffer sizes for the selected solver and for both solvers resident in the process. These are sums of the D3D12 buffer resource widths created for the simulation. Read-only topology buffers use upload heaps, so this is a resource-size accounting metric, not a measurement of dedicated VRAM residency. It excludes shared graphics resources such as swap-chain buffers, depth/normal capture textures, the render index buffer, descriptor heaps and driver/runtime allocations.
 
 ## Known limitations
 
