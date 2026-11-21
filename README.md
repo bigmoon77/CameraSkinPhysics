@@ -11,10 +11,11 @@ The target render mesh contains exactly 100,000 vertices per sphere. Render vert
 
 - Win32 + D3D12 device, swap chain, depth buffer, graphics pipeline, and two-body sphere rendering.
 - Deterministic 100,000-vertex sphere surface generator.
-- CPU tetrahedral lattice generation, rest-volume construction, particle-to-tetrahedron incidence CSR, and tetrahedral barycentric skin mappings for all 100k render vertices.
-- GPU skinning kernel that reconstructs render vertices from four simulated tetrahedral nodes while preserving the exact rest pose.
+- CPU tetrahedral lattice generation: 10,144 particles, 51,246 tetrahedra, and 204,984 particle-element incidence entries at the default resolution.
+- Tetrahedral barycentric skin mappings for all 100k render vertices. A nearest-element fallback handles the small number of surface samples outside the clipped lattice; rest offsets preserve the exact undeformed shape.
+- GPU skinning kernel that reconstructs render vertices from four simulated tetrahedral nodes.
 - Initial HLSL kernels for particle integration, tetrahedral volume constraints, gather-based correction, and camera-space collision.
-- Portable CTest validation for sphere topology, normals, tetrahedron indices/volumes, CSR incidence, and surface mapping.
+- Portable CTest validation for sphere topology, normals, tetrahedron indices/volumes, CSR incidence, and barycentric surface mapping.
 
 **The D3D12 executable currently renders two static spheres. GPU compute dispatch, deformed-surface rendering, camera-depth capture, and GPU timestamp queries are still under development.** Do not interpret the current app as a completed soft-body demo.
 
