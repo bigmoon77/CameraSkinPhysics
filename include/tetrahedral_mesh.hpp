@@ -36,6 +36,7 @@ namespace csp
         std::vector<std::uint32_t> incident_tetrahedra;
         std::vector<std::array<std::uint32_t, 4>> tetrahedron_indices;
         std::vector<std::uint32_t> surface_to_particle;
+        std::vector<std::array<float, 3>> surface_offsets;
     };
 
     tetrahedral_mesh make_tetrahedral_mesh(const sphere_mesh& surface, std::uint32_t grid_resolution = 28);
