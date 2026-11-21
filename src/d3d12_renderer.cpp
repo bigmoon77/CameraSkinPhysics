@@ -936,17 +936,14 @@ namespace csp
                 body.lambda_zero_is_srv = false;
             }
 
-            for (std::uint32_t lambda_index = 0; lambda_index < 2; ++lambda_index)
-            {
-                const std::uint32_t base = reserve_descriptor_table();
-                clear_descriptor_table(base);
-                write_buffer_uav(base, 0, body.tetrahedron_lambdas[lambda_index].Get(),
-                    compute_->tetrahedron_count, sizeof(float));
-                const std::uint32_t lambda_count = compute_->tetrahedron_count * 7;
-                const clear_constants constants{lambda_count, {0.0f, 0.0f, 0.0f}};
-                dispatch_compute(compute_->clear_pipeline.Get(), base, &constants, 4,
-                    (lambda_count + 255u) / 256u);
-            }
+            const std::uint32_t lambda_count = compute_->tetrahedron_count * 7;
+            const std::uint32_t clear_table = reserve_descriptor_table();
+            clear_descriptor_table(clear_table);
+            write_buffer_uav(clear_table, 0, body.tetrahedron_lambdas[0].Get(),
+                lambda_count, sizeof(float));
+            const clear_constants clear_values{lambda_count, {0.0f, 0.0f, 0.0f}};
+            dispatch_compute(compute_->clear_pipeline.Get(), clear_table, &clear_values, 4,
+                (lambda_count + 255u) / 256u);
             transition_resource(body.tetrahedron_lambdas[0].Get(),
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -1059,16 +1056,13 @@ namespace csp
             }
 
             const std::uint32_t lambda_count = compute_->edge_count;
-            for (std::uint32_t lambda_index = 0; lambda_index < 2; ++lambda_index)
-            {
-                const std::uint32_t table = reserve_descriptor_table();
-                clear_descriptor_table(table);
-                write_buffer_uav(table, 0, body.edge_lambdas[lambda_index].Get(),
-                    lambda_count, sizeof(float));
-                const clear_constants constants{lambda_count, {0.0f, 0.0f, 0.0f}};
-                dispatch_compute(compute_->clear_pipeline.Get(), table, &constants, 4,
-                    (lambda_count + 255u) / 256u);
-            }
+            const std::uint32_t clear_table = reserve_descriptor_table();
+            clear_descriptor_table(clear_table);
+            write_buffer_uav(clear_table, 0, body.edge_lambdas[0].Get(),
+                lambda_count, sizeof(float));
+            const clear_constants clear_values{lambda_count, {0.0f, 0.0f, 0.0f}};
+            dispatch_compute(compute_->clear_pipeline.Get(), clear_table, &clear_values, 4,
+                (lambda_count + 255u) / 256u);
             transition_resource(body.edge_lambdas[0].Get(),
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
