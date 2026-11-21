@@ -189,12 +189,27 @@ namespace csp
             float center_x = 0.0f;
         };
 
+        struct camera_gpu_body
+        {
+            std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> particles;
+            Microsoft::WRL::ComPtr<ID3D12Resource> edge_corrections;
+            std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> edge_lambdas;
+            Microsoft::WRL::ComPtr<ID3D12Resource> vertices;
+            D3D12_VERTEX_BUFFER_VIEW vertex_view{};
+            std::uint32_t particle_read = 0;
+            bool correction_is_srv = false;
+            bool lambda_zero_is_srv = false;
+            bool vertex_is_input_buffer = false;
+            float center_x = 0.0f;
+        };
+
         Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descriptor_heap;
         std::uint32_t descriptor_size = 0;
         std::uint32_t descriptor_cursor = 0;
         std::uint32_t particle_count = 0;
         std::uint32_t tetrahedron_count = 0;
         std::uint32_t vertex_count = 0;
+        std::uint32_t edge_count = 0;
         Microsoft::WRL::ComPtr<ID3D12Resource> inverse_masses;
         Microsoft::WRL::ComPtr<ID3D12Resource> rest_positions;
         Microsoft::WRL::ComPtr<ID3D12Resource> tetrahedra;
@@ -202,7 +217,11 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12Resource> incident_tetrahedra;
         Microsoft::WRL::ComPtr<ID3D12Resource> tetrahedron_indices;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_mappings;
+        Microsoft::WRL::ComPtr<ID3D12Resource> surface_edges;
+        Microsoft::WRL::ComPtr<ID3D12Resource> surface_edge_ranges;
+        Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_edges;
         std::array<gpu_body, 2> bodies;
+        std::array<camera_gpu_body, 2> camera_bodies;
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> integrate_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> clear_pipeline;
@@ -210,7 +229,10 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12PipelineState> gather_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> skin_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_collision_pipeline;
-        std::unique_ptr<benchmark_log> log;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_edge_pipeline;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_gather_pipeline;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_skin_pipeline;
+        std::array<std::unique_ptr<benchmark_log>, 2> logs;
     };
 
     d3d12_renderer::~d3d12_renderer()
