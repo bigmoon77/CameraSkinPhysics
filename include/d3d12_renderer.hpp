@@ -56,7 +56,6 @@ namespace csp
         void capture_body(std::uint32_t capture_index, std::uint32_t body_index);
         void resolve_benchmark_queries(double cpu_frame_ms);
 
-        struct compute_state;
         std::unique_ptr<compute_state> compute_;
 
         Microsoft::WRL::ComPtr<IDXGIFactory6> factory_;
