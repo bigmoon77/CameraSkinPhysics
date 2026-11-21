@@ -1,34 +1,45 @@
 # CameraSkinPhysics
 
-A Direct3D 12 research prototype for real-time soft-body interaction between two 100,000-vertex spheres.
+A Direct3D 12 soft-body prototype for comparing two GPU deformation models under the same sphere-to-sphere camera-space contact setup.
 
-The current executable combines two techniques in one scene:
+The executable starts with two 100,000-vertex spheres. Press **F1** or **F2** to select which independent simulation is displayed.
 
-- **GPU tetrahedral XPBD** — particles are integrated on the GPU; each tetrahedron solves one volume and six edge-length constraints, and a CSR gather pass accumulates the per-tetrahedron corrections without floating-point atomics.
-- **Camera-space contact correction** — each body is rendered into an opposing-body depth/normal capture. Particle positions are projected into that capture and corrected against a bounded contact band.
+- **F1 — Tetrahedral XPBD:** an interior particle lattice is solved with one tetrahedron volume constraint and six local edge-length constraints per tetrahedron. A CSR gather pass accumulates constraint corrections without floating-point atomics. A barycentric mapping skins the render surface.
+- **F2 — Camera surface:** the 100,000 render vertices are the simulation particles. Unique triangle edges form a surface spring network, solved with XPBD edge-length constraints and a vertex-to-edge CSR gather. This mode has no tetrahedral interior mesh.
+- **Shared contact:** both modes render the opposing sphere into a depth/normal target and project their particles into that target for contact correction. Both use the same camera, initial sphere centers, initial velocities, capture resolution and iteration count.
 
-The current build is a hybrid prototype. The camera pass supplements the tetrahedral solver; it is not yet an independent camera-only A/B demo. The project still needs that separate comparison path before performance claims can be made between the two methods.
+Each mode owns independent particle state. Switching to a mode for the first time starts it from the same initial condition; switching back resumes that mode's previous state. Run one mode at a time for a clean benchmark.
+
+## Controls
+
+| Key | Action |
+|---|---|
+| F1 | Tetrahedral XPBD mode |
+| F2 | Camera-surface mode |
 
 ## Current implementation
 
-- Win32 + D3D12 device, swap chain, graphics pipeline, compute root signature, PSOs, descriptor heap and GPU resource transitions.
-- Two sphere surface meshes, each with exactly 100,000 vertices and 597,600 indices.
-- CPU tetrahedral lattice generation: 10,144 simulation particles, 51,246 tetrahedra and 204,984 particle-element incidence entries per body at the default resolution.
-- Per-body ping-pong particle buffers, integration, four XPBD iterations, volume constraints and six local edge constraints per tetrahedron.
-- CSR gather pass for deterministic accumulation of tetrahedral corrections.
-- GPU barycentric skinning of 100,000 render vertices per body.
-- Two 1024 × 1024 opposing-body normal/depth capture targets and a particle camera-contact correction pass.
-- GPU timestamp queries for simulation, capture, camera collision/skin update and rendering.
-- CSV output at `output/benchmark.csv`. Times are GPU timestamp intervals; CPU frame time is also recorded.
+- Win32 + D3D12 device, swap chain, graphics/compute root signatures, PSOs, GPU buffers and explicit resource-state transitions.
+- Two 100,000-vertex sphere surfaces with 597,600 indices.
+- Surface topology: 299,200 unique edges and 598,400 vertex-edge CSR incidence entries per sphere at the default resolution.
+- Tetrahedral topology: 10,144 interior particles, 51,246 tetrahedra and 204,984 particle-element CSR incidence entries per sphere at the default resolution.
+- Tetrahedral XPBD: particle integration, volume and edge constraints, ping-pong multipliers, CSR correction gather and barycentric GPU skinning.
+- Camera-surface XPBD: 100,000 surface particles per sphere, edge-length constraints, ping-pong multipliers, CSR correction gather and direct GPU skinning.
+- Two 1024 × 1024 opposing-body normal/depth capture targets and the shared camera-space particle contact pass.
+- GPU timestamp queries. CSV files are written separately:
+  - `output/benchmark_xpbd.csv`
+  - `output/benchmark_camera_surface.csv`
+
+Each CSV contains per-frame CPU frame time, GPU simulation, capture, collision/skin, render intervals, particle count and tetrahedron count. The camera-surface run records zero tetrahedra because it has no tetrahedral volume mesh. The first timestamp interval includes solver passes and the initial skinning dispatch; the collision interval includes contact correction and the final skinning dispatch.
 
 ## Known limitations
 
-- This is currently a hybrid tetrahedral + camera-contact solver. A separate camera-only soft-body implementation and a proper side-by-side A/B scene remain outstanding.
-- The camera pass uses one frontmost depth layer per body. It cannot infer the full inside/outside state or distinguish the far side of a captured surface. The collision shader therefore limits correction to a thin contact band; multi-view capture, depth peeling or thickness reconstruction is needed for robust deep overlap.
-- The tetrahedral domain is a regular lattice clipped to the sphere. Its boundary is coarse and some render samples use a nearest-element fallback. The surface rest offsets preserve the original rest pose.
-- Skin normals are currently radial approximations, not normals recomputed from deformed triangle adjacency.
-- The renderer currently waits for the GPU each frame to keep descriptor and query reuse simple. This is a correctness-oriented baseline and reduces throughput; frame-latency overlap should be added before final performance comparison.
-- GPU timestamp values and physical deformation have not been validated on a Windows D3D12 runtime in this development environment. Treat the new GPU path as unverified until it is built and exercised on a Windows machine with DXC and a D3D12-capable GPU.
+- The camera method is currently a surface-edge XPBD model paired with depth/normal contact. It does not have a volume or thickness constraint. Surface triangles can fold or invert under severe deformation; bending/dihedral and area constraints are possible next steps.
+- The camera contact uses one frontmost depth layer from a single view. It cannot classify deep interior overlap or the far side of the opposing body. The shader limits correction to a narrow contact band to avoid projecting deep particles onto the visible shell. Multi-view capture, depth peeling or thickness reconstruction is required for robust deep overlap.
+- The tetrahedral domain is a regular lattice clipped to the sphere. Its boundary is coarse and a small number of render samples use a nearest-element fallback. Rest offsets preserve the initial rest pose.
+- Render normals are currently radial approximations. Recompute from deformed triangle adjacency for improved lighting.
+- The renderer waits for the GPU once per frame to keep resource and query reuse simple. This is a correctness-oriented baseline, not a throughput-optimized renderer.
+- DXC compilation and D3D12 runtime validation are required before trusting GPU results. The development environment used to author this branch did not provide a Windows D3D12 runtime or DXC, so no claim of successful hardware execution is made.
 
 ## Requirements
 
@@ -36,13 +47,16 @@ Portable geometry tests:
 - CMake 3.24+
 - C++20 compiler
 
-D3D12 demo:
+D3D12 comparison app:
 - Windows 10/11
 - Visual Studio 2022 with C++20 support
 - Windows SDK with Direct3D 12
 - DirectX Shader Compiler (`dxc`) on PATH
+- D3D12-capable GPU
 
-## Build and test (all platforms)
+## Build and test the portable geometry code
+
+Run from the repository root:
 
 ```sh
 cmake -S . -B build -DCSP_BUILD_D3D12_APP=OFF
@@ -50,17 +64,16 @@ cmake --build build --config Release
 ctest --test-dir build --output-on-failure
 ```
 
-## Build the Windows demo
+The validation checks sphere topology, outward triangle winding, unique surface edges, edge CSR, tetrahedron indices/volumes, tetrahedral CSR and rest-pose surface mappings.
+
+## Build the Windows comparison app
+
+Run from a Visual Studio 2022 Developer PowerShell:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
+.\build\Release\CameraSkinPhysics.exe
 ```
 
-Run `build/Release/CameraSkinPhysics.exe`. The benchmark CSV is written relative to the working directory.
-
-## Solver data layout
-
-The surface mesh and volumetric simulation mesh are separate. Every render vertex has a four-particle barycentric mapping and a rest offset. The volume solver uses a regular 3D lattice clipped to the sphere and splits complete lattice cells into six tetrahedra. Each tetrahedron computes a volume constraint plus six edge-distance constraints. The gather pass follows per-particle CSR incidence lists and sums contributions from adjacent tetrahedra.
-
-The camera contact pass captures the opposing body into a normal target and a depth target. For each particle it reconstructs the captured surface position using the inverse view-projection matrix, evaluates the signed distance along the captured normal and applies a bounded positional/velocity correction.
+The application begins in F1 mode. Press F2 to switch to the camera-surface simulation. CSV output is written relative to the current working directory.
