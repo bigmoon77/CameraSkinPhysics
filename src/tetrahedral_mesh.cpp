@@ -280,7 +280,55 @@ namespace csp
 
             if (!found)
             {
-                throw std::runtime_error("Failed to map a render vertex into the tetrahedral volume. Increase grid resolution or adjust skin inset.");
+                float nearest_distance = std::numeric_limits<float>::max();
+                for (std::size_t tet_index = 0; tet_index < result.tetrahedra.size(); ++tet_index)
+                {
+                    const tetrahedron& tet = result.tetrahedra[tet_index];
+                    const float3 p0 = get_position(result.particles, tet.indices[0]);
+                    const float3 p1 = get_position(result.particles, tet.indices[1]);
+                    const float3 p2 = get_position(result.particles, tet.indices[2]);
+                    const float3 p3 = get_position(result.particles, tet.indices[3]);
+                    const float3 center{
+                        (p0.x + p1.x + p2.x + p3.x) * 0.25f,
+                        (p0.y + p1.y + p2.y + p3.y) * 0.25f,
+                        (p0.z + p1.z + p2.z + p3.z) * 0.25f
+                    };
+                    const float3 delta = subtract(center, target_position);
+                    const float distance = dot(delta, delta);
+                    if (distance >= nearest_distance) continue;
+
+                    float weights[4]{};
+                    if (!calculate_barycentric(p0, p1, p2, p3, target_position, weights)) continue;
+                    float weight_sum = 0.0f;
+                    for (float& weight : weights)
+                    {
+                        weight = std::max(0.0f, weight);
+                        weight_sum += weight;
+                    }
+                    if (weight_sum <= 1.0e-8f)
+                    {
+                        const float distances[4] = {
+                            dot(subtract(p0, target_position), subtract(p0, target_position)),
+                            dot(subtract(p1, target_position), subtract(p1, target_position)),
+                            dot(subtract(p2, target_position), subtract(p2, target_position)),
+                            dot(subtract(p3, target_position), subtract(p3, target_position))
+                        };
+                        const std::uint32_t closest = static_cast<std::uint32_t>(
+                            std::min_element(std::begin(distances), std::end(distances)) - std::begin(distances));
+                        for (float& weight : weights) weight = 0.0f;
+                        weights[closest] = 1.0f;
+                        weight_sum = 1.0f;
+                    }
+                    for (std::uint32_t i = 0; i < 4; ++i)
+                    {
+                        best_mapping.indices[i] = tet.indices[i];
+                        best_mapping.weights[i] = weights[i] / weight_sum;
+                    }
+                    nearest_distance = distance;
+                }
+                if (nearest_distance == std::numeric_limits<float>::max())
+                    throw std::runtime_error("Failed to find a tetrahedron for a render vertex.");
+                found = true;
             }
 
             const float3 interpolated{
