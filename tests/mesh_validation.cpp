@@ -38,6 +38,59 @@ int main()
     check(surface.indices.size() == 597600, "default sphere index count must match its grid topology");
     check(surface.indices.size() % 3 == 0, "sphere index count must be divisible by three");
 
+    check(surface.edges.size() == 299200, "default sphere must contain 299,200 unique surface edges");
+    check(surface.edge_incidence_ranges.size() == surface.vertices.size(),
+        "surface edge incidence range count must match vertex count");
+    check(surface.incident_edges.size() == surface.edges.size() * 2,
+        "each surface edge must have exactly two incidence entries");
+
+    bool surface_edges_valid = true;
+    for (std::size_t edge_index = 0; edge_index < surface.edges.size(); ++edge_index)
+    {
+        const csp::surface_edge& edge = surface.edges[edge_index];
+        if (edge.indices[0] >= surface.vertices.size() || edge.indices[1] >= surface.vertices.size()
+            || edge.indices[0] == edge.indices[1] || !(edge.rest_length > 0.0f)
+            || !finite_value(edge.rest_length) || !(edge.compliance >= 0.0f)
+            || !finite_value(edge.compliance))
+        {
+            surface_edges_valid = false;
+            break;
+        }
+    }
+    check(surface_edges_valid, "surface edge indices and rest lengths must be valid");
+
+    std::uint64_t surface_incidence_total = 0;
+    bool surface_incidence_valid = true;
+    for (std::size_t vertex_index = 0; vertex_index < surface.edge_incidence_ranges.size(); ++vertex_index)
+    {
+        const csp::mesh_uint2 range = surface.edge_incidence_ranges[vertex_index];
+        if (static_cast<std::size_t>(range.x) + range.y > surface.incident_edges.size())
+        {
+            surface_incidence_valid = false;
+            break;
+        }
+        surface_incidence_total += range.y;
+        for (std::uint32_t offset = 0; offset < range.y; ++offset)
+        {
+            const std::uint32_t edge_index = surface.incident_edges[range.x + offset];
+            if (edge_index >= surface.edges.size())
+            {
+                surface_incidence_valid = false;
+                break;
+            }
+            const csp::surface_edge& edge = surface.edges[edge_index];
+            if (edge.indices[0] != vertex_index && edge.indices[1] != vertex_index)
+            {
+                surface_incidence_valid = false;
+                break;
+            }
+        }
+        if (!surface_incidence_valid) break;
+    }
+    check(surface_incidence_valid, "surface edge CSR entries must reference incident edges");
+    check(surface_incidence_total == surface.edges.size() * 2ull,
+        "surface edge CSR must contain exactly two entries per edge");
+
     for (std::size_t index = 0; index < surface.vertices.size(); ++index)
     {
         const csp::vertex& value = surface.vertices[index];
