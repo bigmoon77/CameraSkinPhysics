@@ -11,6 +11,12 @@
 
 namespace csp
 {
+    enum class solver_mode
+    {
+        tetrahedral_xpbd,
+        camera_surface
+    };
+
     class d3d12_renderer
     {
     public:
@@ -22,6 +28,8 @@ namespace csp
         bool initialize(HWND window, std::uint32_t width, std::uint32_t height,
             const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh);
         void render(float delta_time);
+        void set_solver_mode(solver_mode mode);
+        solver_mode get_solver_mode() const;
         void wait_gpu();
 
     private:
@@ -52,7 +60,9 @@ namespace csp
         void transition_resource(ID3D12Resource* resource,
             D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
         void simulate_volume(float delta_time);
+        void simulate_camera_surface(float delta_time);
         void skin_body(std::uint32_t body_index);
+        void skin_camera_body(std::uint32_t body_index);
         void capture_body(std::uint32_t capture_index, std::uint32_t body_index);
         void resolve_benchmark_queries(double cpu_frame_ms);
 
@@ -94,5 +104,6 @@ namespace csp
         std::uint64_t timestamp_frequency_ = 0;
         std::uint64_t frame_number_ = 0;
         HANDLE fence_event_ = nullptr;
+        solver_mode solver_mode_ = solver_mode::tetrahedral_xpbd;
     };
 }
