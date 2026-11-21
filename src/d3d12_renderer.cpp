@@ -233,6 +233,7 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_gather_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_skin_pipeline;
         std::array<std::unique_ptr<benchmark_log>, 2> logs;
+        std::array<std::uint64_t, 2> benchmark_frame_numbers{};
     };
 
     d3d12_renderer::~d3d12_renderer()
@@ -1257,7 +1258,11 @@ namespace csp
 
     void d3d12_renderer::resolve_benchmark_queries(double cpu_frame_ms)
     {
-        if (!compute_ || !compute_->log || timestamp_frequency_ == 0) return;
+        if (!compute_ || timestamp_frequency_ == 0) return;
+        const std::size_t mode_index =
+            solver_mode_ == solver_mode::camera_surface ? 1u : 0u;
+        if (!compute_->logs[mode_index]) return;
+
         const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * 5};
         std::uint64_t* timestamps = nullptr;
         if (FAILED(timestamp_readback_->Map(0, &read_range, reinterpret_cast<void**>(&timestamps)))) return;
@@ -1267,12 +1272,18 @@ namespace csp
         const std::uint64_t collision_ticks = timestamps[3] - timestamps[2];
         const std::uint64_t render_ticks = timestamps[4] - timestamps[3];
         const double ticks_to_ms = 1000.0 / static_cast<double>(timestamp_frequency_);
-        compute_->log->write_frame(++frame_number_, cpu_frame_ms,
+        const std::uint64_t particle_count =
+            (mode_index == 1u ? compute_->vertex_count : compute_->particle_count) * 2ull;
+        const std::uint64_t tetrahedron_count =
+            mode_index == 1u ? 0ull : compute_->tetrahedron_count * 2ull;
+
+        compute_->logs[mode_index]->write_frame(++compute_->benchmark_frame_numbers[mode_index],
+            cpu_frame_ms,
             static_cast<double>(simulation_ticks) * ticks_to_ms,
             static_cast<double>(capture_ticks) * ticks_to_ms,
             static_cast<double>(collision_ticks) * ticks_to_ms,
             static_cast<double>(render_ticks) * ticks_to_ms,
-            compute_->particle_count * 2ull, compute_->tetrahedron_count * 2ull);
+            particle_count, tetrahedron_count);
 
         const D3D12_RANGE written_range{0, 0};
         timestamp_readback_->Unmap(0, &written_range);
