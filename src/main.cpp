@@ -100,8 +100,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     try
     {
         const csp::sphere_mesh surface_mesh = csp::make_sphere_mesh();
-        if (surface_mesh.vertices.size() != 100000 || surface_mesh.edges.size() != 299994
-            || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size())
+        if (surface_mesh.vertices.size() != 100000 || surface_mesh.indices.size() != 599988
+            || surface_mesh.edges.size() != 299994
+            || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
+            || surface_mesh.incident_edges.size() != 599988)
         {
             MessageBoxW(window, L"Sphere surface topology validation failed.", L"CameraSkinPhysics",
                 MB_ICONERROR | MB_OK);
