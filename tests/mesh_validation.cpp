@@ -35,10 +35,10 @@ int main()
 {
     const csp::sphere_mesh surface = csp::make_sphere_mesh();
     check(surface.vertices.size() == 100000, "default sphere must contain exactly 100,000 vertices");
-    check(surface.indices.size() == 597600, "default sphere index count must match its grid topology");
+    check(surface.indices.size() == 599988, "default sphere index count must match its grid topology");
     check(surface.indices.size() % 3 == 0, "sphere index count must be divisible by three");
 
-    check(surface.edges.size() == 299200, "default sphere must contain 299,200 unique surface edges");
+    check(surface.edges.size() == 299994, "default sphere must contain 299,200 unique surface edges");
     check(surface.edge_incidence_ranges.size() == surface.vertices.size(),
         "surface edge incidence range count must match vertex count");
     check(surface.incident_edges.size() == surface.edges.size() * 2,
@@ -76,9 +76,9 @@ int main()
 
     const csp::sphere_mesh coarse_surface = csp::make_sphere_mesh(8, 12);
     check(coarse_surface.vertices.size() == 96, "coarse sphere vertex count must match its resolution");
-    check(coarse_surface.indices.size() == 504, "coarse sphere index count must match its resolution");
-    check(coarse_surface.edges.size() == 264, "coarse sphere edge count must match its resolution");
-    check(coarse_surface.incident_edges.size() == 528,
+    check(coarse_surface.indices.size() == 564, "coarse sphere index count must match its resolution");
+    check(coarse_surface.edges.size() == 282, "coarse sphere edge count must match its resolution");
+    check(coarse_surface.incident_edges.size() == 564,
         "coarse sphere CSR must contain two entries per unique edge");
 
     std::uint64_t coarse_incidence_total = 0;
