@@ -13,6 +13,7 @@ namespace
 {
     constexpr wchar_t window_class_name[] = L"CameraSkinPhysicsWindow";
     csp::d3d12_renderer* active_renderer = nullptr;
+    bool benchmark_running = false;
 
     void update_window_title(HWND window)
     {
@@ -52,6 +53,10 @@ namespace
             PostQuitMessage(0);
             return 0;
         }
+        if (message == WM_KEYDOWN && benchmark_running
+            && (wparam == VK_F1 || wparam == VK_F2))
+            return 0;
+
         if (message == WM_KEYDOWN && active_renderer != nullptr)
         {
             if (wparam == VK_F1)
@@ -132,6 +137,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         const std::uint32_t benchmark_frame_count = parse_benchmark_frame_count(command_line);
         if (benchmark_frame_count > 0)
         {
+            benchmark_running = true;
             const csp::solver_mode benchmark_modes[2] = {
                 csp::solver_mode::tetrahedral_xpbd,
                 csp::solver_mode::camera_surface
@@ -159,6 +165,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
                     renderer.render(1.0f / 60.0f);
                 }
             }
+            benchmark_running = false;
             active_renderer = nullptr;
             renderer.wait_gpu();
             return 0;
@@ -188,6 +195,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     }
     catch (const std::exception& exception)
     {
+        benchmark_running = false;
         active_renderer = nullptr;
         const std::string message_text = exception.what();
         const int required = MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, nullptr, 0);
