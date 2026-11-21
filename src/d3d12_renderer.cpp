@@ -196,6 +196,7 @@ namespace csp
         std::uint32_t tetrahedron_count = 0;
         std::uint32_t vertex_count = 0;
         Microsoft::WRL::ComPtr<ID3D12Resource> inverse_masses;
+        Microsoft::WRL::ComPtr<ID3D12Resource> rest_positions;
         Microsoft::WRL::ComPtr<ID3D12Resource> tetrahedra;
         Microsoft::WRL::ComPtr<ID3D12Resource> incidence_ranges;
         Microsoft::WRL::ComPtr<ID3D12Resource> incident_tetrahedra;
@@ -613,12 +614,18 @@ namespace csp
             return create_upload_buffer(device_.Get(), values.data(), values.size() * sizeof(values[0]));
         };
         compute_->inverse_masses = upload_vector(volume_mesh.inverse_masses);
+        std::vector<DirectX::XMFLOAT4> rest_positions;
+        rest_positions.reserve(volume_mesh.particles.size());
+        for (const simulation_particle& particle : volume_mesh.particles)
+            rest_positions.emplace_back(particle.position[0], particle.position[1], particle.position[2], 1.0f);
+        compute_->rest_positions = create_upload_buffer(device_.Get(), rest_positions.data(),
+            rest_positions.size() * sizeof(DirectX::XMFLOAT4));
         compute_->tetrahedra = upload_vector(volume_mesh.tetrahedra);
         compute_->incidence_ranges = upload_vector(volume_mesh.incidence_ranges);
         compute_->incident_tetrahedra = upload_vector(volume_mesh.incident_tetrahedra);
         compute_->tetrahedron_indices = upload_vector(volume_mesh.tetrahedron_indices);
         compute_->surface_mappings = upload_vector(volume_mesh.surface_mappings);
-        if (!compute_->inverse_masses || !compute_->tetrahedra || !compute_->incidence_ranges
+        if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra || !compute_->incidence_ranges
             || !compute_->incident_tetrahedra || !compute_->tetrahedron_indices || !compute_->surface_mappings) return false;
 
         std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> staging_resources;
@@ -648,7 +655,7 @@ namespace csp
             }
 
             const UINT64 correction_bytes = static_cast<UINT64>(compute_->tetrahedron_count) * 4 * sizeof(DirectX::XMFLOAT4);
-            const UINT64 lambda_bytes = static_cast<UINT64>(compute_->tetrahedron_count) * sizeof(float);
+            const UINT64 lambda_bytes = static_cast<UINT64>(compute_->tetrahedron_count) * 7 * sizeof(float);
             const UINT64 vertex_bytes = static_cast<UINT64>(compute_->vertex_count) * sizeof(vertex);
             body.tetrahedron_corrections = create_buffer(device_.Get(), correction_bytes,
                 D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
@@ -827,9 +834,10 @@ namespace csp
                 clear_descriptor_table(base);
                 write_buffer_uav(base, 0, body.tetrahedron_lambdas[lambda_index].Get(),
                     compute_->tetrahedron_count, sizeof(float));
-                const clear_constants constants{compute_->tetrahedron_count, {0.0f, 0.0f, 0.0f}};
+                const std::uint32_t lambda_count = compute_->tetrahedron_count * 7;
+                const clear_constants constants{lambda_count, {0.0f, 0.0f, 0.0f}};
                 dispatch_compute(compute_->clear_pipeline.Get(), base, &constants, 4,
-                    (compute_->tetrahedron_count + 255u) / 256u);
+                    (lambda_count + 255u) / 256u);
             }
             transition_resource(body.tetrahedron_lambdas[0].Get(),
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -875,11 +883,13 @@ namespace csp
                 write_buffer_srv(solve_table, 2, compute_->inverse_masses.Get(),
                     compute_->particle_count, sizeof(float));
                 write_buffer_srv(solve_table, 3, body.tetrahedron_lambdas[lambda_read].Get(),
-                    compute_->tetrahedron_count, sizeof(float));
+                    compute_->tetrahedron_count * 7, sizeof(float));
+                write_buffer_srv(solve_table, 4, compute_->rest_positions.Get(),
+                    compute_->particle_count, sizeof(DirectX::XMFLOAT4));
                 write_buffer_uav(solve_table, 0, body.tetrahedron_corrections.Get(),
                     compute_->tetrahedron_count * 4, sizeof(DirectX::XMFLOAT4));
                 write_buffer_uav(solve_table, 1, body.tetrahedron_lambdas[lambda_write].Get(),
-                    compute_->tetrahedron_count, sizeof(float));
+                    compute_->tetrahedron_count * 7, sizeof(float));
                 const tetrahedron_constants solve_constants{
                     compute_->tetrahedron_count, clamped_delta_time, 0.65f, 0.0f
                 };
