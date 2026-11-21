@@ -23,6 +23,10 @@ if(CSP_BUILD_TESTS)
     add_executable(CameraSkinPhysicsTests tests/mesh_validation.cpp)
     target_link_libraries(CameraSkinPhysicsTests PRIVATE CameraSkinPhysicsCore)
     add_test(NAME CameraSkinPhysics.MeshValidation COMMAND CameraSkinPhysicsTests)
+
+    add_executable(CameraSkinPhysicsBenchmarkLogTests tests/benchmark_log_validation.cpp)
+    target_link_libraries(CameraSkinPhysicsBenchmarkLogTests PRIVATE CameraSkinPhysicsCore)
+    add_test(NAME CameraSkinPhysics.BenchmarkLogValidation COMMAND CameraSkinPhysicsBenchmarkLogTests)
 endif()
 
 if(WIN32 AND CSP_BUILD_D3D12_APP)
