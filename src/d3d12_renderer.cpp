@@ -1240,8 +1240,11 @@ namespace csp
         command_list_->IASetIndexBuffer(&index_buffer_view_);
 
         using namespace DirectX;
-        const XMMATRIX view = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, -6.0f, 1.0f),
-            XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+        const XMVECTOR capture_eye = capture_index == 0
+            ? XMVectorSet(-6.0f, 0.0f, 0.0f, 1.0f)
+            : XMVectorSet(6.0f, 0.0f, 0.0f, 1.0f);
+        const XMMATRIX view = XMMatrixLookAtLH(capture_eye, XMVectorZero(),
+            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
         const XMMATRIX projection = XMMatrixOrthographicLH(4.8f, 4.8f, 0.1f, 20.0f);
         capture_constants constants{};
         XMStoreFloat4x4(&constants.world, XMMatrixIdentity());
@@ -1319,27 +1322,30 @@ namespace csp
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 2);
 
         using namespace DirectX;
-        const XMMATRIX collision_view = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, -6.0f, 1.0f),
-            XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-        const XMMATRIX collision_projection = XMMatrixOrthographicLH(4.8f, 4.8f, 0.1f, 20.0f);
-        const XMMATRIX collision_view_projection = collision_view * collision_projection;
-        XMVECTOR determinant{};
-        const XMMATRIX inverse_view_projection = XMMatrixInverse(&determinant, collision_view_projection);
-
-        camera_collision_constants collision_constants{};
-        XMStoreFloat4x4(&collision_constants.view_projection, collision_view_projection);
-        XMStoreFloat4x4(&collision_constants.inverse_view_projection, inverse_view_projection);
-        collision_constants.particle_count =
-            use_camera_surface ? compute_->vertex_count : compute_->particle_count;
-        collision_constants.viewport_width = capture_size;
-        collision_constants.viewport_height = capture_size;
-        collision_constants.particle_radius = use_camera_surface ? 0.012f : 0.035f;
-        collision_constants.pushout = use_camera_surface ? 0.006f : 0.012f;
-        collision_constants.velocity_friction = 0.15f;
-        collision_constants.contact_band = use_camera_surface ? 0.10f : 0.16f;
-
         for (std::uint32_t body_index = 0; body_index < 2; ++body_index)
         {
+            const XMVECTOR collision_eye = body_index == 0
+                ? XMVectorSet(-6.0f, 0.0f, 0.0f, 1.0f)
+                : XMVectorSet(6.0f, 0.0f, 0.0f, 1.0f);
+            const XMMATRIX collision_view = XMMatrixLookAtLH(collision_eye, XMVectorZero(),
+                XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+            const XMMATRIX collision_projection = XMMatrixOrthographicLH(4.8f, 4.8f, 0.1f, 20.0f);
+            const XMMATRIX collision_view_projection = collision_view * collision_projection;
+            XMVECTOR determinant{};
+            const XMMATRIX inverse_view_projection = XMMatrixInverse(&determinant, collision_view_projection);
+
+            camera_collision_constants collision_constants{};
+            XMStoreFloat4x4(&collision_constants.view_projection, collision_view_projection);
+            XMStoreFloat4x4(&collision_constants.inverse_view_projection, inverse_view_projection);
+            collision_constants.particle_count =
+                use_camera_surface ? compute_->vertex_count : compute_->particle_count;
+            collision_constants.viewport_width = capture_size;
+            collision_constants.viewport_height = capture_size;
+            collision_constants.particle_radius = use_camera_surface ? 0.012f : 0.035f;
+            collision_constants.pushout = use_camera_surface ? 0.006f : 0.012f;
+            collision_constants.velocity_friction = 0.15f;
+            collision_constants.contact_band = use_camera_surface ? 0.10f : 0.16f;
+
             ID3D12Resource* input_particles = nullptr;
             ID3D12Resource* output_particles = nullptr;
             std::uint32_t* particle_read = nullptr;
