@@ -620,7 +620,10 @@ namespace csp
             && create_pipeline(L"xpbd_tetrahedra.dxil", compute_->tetrahedron_pipeline)
             && create_pipeline(L"xpbd_gather.dxil", compute_->gather_pipeline)
             && create_pipeline(L"skin_vertices.dxil", compute_->skin_pipeline)
-            && create_pipeline(L"camera_collision.dxil", compute_->camera_collision_pipeline);
+            && create_pipeline(L"camera_collision.dxil", compute_->camera_collision_pipeline)
+            && create_pipeline(L"camera_surface_edges.dxil", compute_->camera_surface_edge_pipeline)
+            && create_pipeline(L"camera_surface_gather.dxil", compute_->camera_surface_gather_pipeline)
+            && create_pipeline(L"camera_surface_skin.dxil", compute_->camera_surface_skin_pipeline);
     }
 
     bool d3d12_renderer::create_compute_resources(const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh)
