@@ -20,8 +20,8 @@ Each mode owns independent particle state. Switching to a mode for the first tim
 ## Current implementation
 
 - Win32 + D3D12 device, swap chain, graphics/compute root signatures, PSOs, GPU buffers and explicit resource-state transitions.
-- Two 100,000-vertex sphere surfaces with 597,600 indices.
-- Surface topology: 299,200 unique edges and 598,400 vertex-edge CSR incidence entries per sphere at the default resolution.
+- Two 100,000-vertex sphere surfaces with 599,988 indices and closed upper/lower caps.
+- Surface topology: 299,994 unique edges and 599,988 vertex-edge CSR incidence entries per sphere at the default resolution.
 - Tetrahedral topology: 10,144 interior particles, 51,246 tetrahedra and 204,984 particle-element CSR incidence entries per sphere at the default resolution.
 - Tetrahedral XPBD: particle integration, volume and edge constraints, ping-pong multipliers, CSR correction gather and barycentric GPU skinning.
 - Camera-surface XPBD: 100,000 surface particles per sphere, edge-length constraints, ping-pong multipliers, CSR correction gather and direct GPU skinning.
