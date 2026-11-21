@@ -66,7 +66,9 @@ cmake --build build --config Release
 ctest --test-dir build --output-on-failure
 ```
 
-The validation checks sphere topology, outward triangle winding, unique surface edges, edge CSR, tetrahedron indices/volumes, tetrahedral CSR and rest-pose surface mappings.
+The CTest suite includes two portable tests:
+- `CameraSkinPhysics.MeshValidation`: sphere topology, outward triangle winding, unique surface edges, edge CSR, tetrahedron indices/volumes, tetrahedral CSR and rest-pose surface mappings.
+- `CameraSkinPhysics.BenchmarkLogValidation`: CSV column count, CPU/GPU FPS calculations, fresh-file truncation and simulation-buffer byte fields.
 
 ## Build the Windows comparison app
 
