@@ -45,5 +45,9 @@ namespace csp
         std::vector<surface_mapping> surface_mappings;
     };
 
+    static_assert(sizeof(simulation_particle) == 32);
+    static_assert(sizeof(tetrahedron) == 32);
+    static_assert(sizeof(surface_mapping) == 48);
+
     tetrahedral_mesh make_tetrahedral_mesh(const sphere_mesh& surface, std::uint32_t grid_resolution = 28);
 }
