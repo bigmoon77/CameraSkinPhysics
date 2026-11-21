@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cwchar>
 #include <exception>
 #include <string>
 #include <windows.h>
@@ -24,8 +25,33 @@ namespace
         SetWindowTextW(window, title.c_str());
     }
 
+    std::uint32_t parse_benchmark_frame_count(PCWSTR command_line)
+    {
+        if (command_line == nullptr) return 0;
+        const std::wstring arguments(command_line);
+        const std::size_t flag_position = arguments.find(L"--benchmark");
+        if (flag_position == std::wstring::npos) return 0;
+
+        constexpr std::uint32_t default_frame_count = 300;
+        const std::size_t value_position = flag_position + 11;
+        if (value_position >= arguments.size() || arguments[value_position] != L'=')
+            return default_frame_count;
+
+        wchar_t* end = nullptr;
+        const unsigned long requested =
+            std::wcstoul(arguments.c_str() + value_position + 1, &end, 10);
+        if (end == arguments.c_str() + value_position + 1 || requested == 0 || requested > 36000)
+            return default_frame_count;
+        return static_cast<std::uint32_t>(requested);
+    }
+
     LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
     {
+        if (message == WM_KEYDOWN && wparam == VK_ESCAPE)
+        {
+            PostQuitMessage(0);
+            return 0;
+        }
         if (message == WM_KEYDOWN && active_renderer != nullptr)
         {
             if (wparam == VK_F1)
@@ -50,7 +76,7 @@ namespace
     }
 }
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_command)
 {
     WNDCLASSEXW window_class{};
     window_class.cbSize = sizeof(window_class);
@@ -100,6 +126,41 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
         active_renderer = &renderer;
         update_window_title(window);
         ShowWindow(window, show_command);
+
+        const std::uint32_t benchmark_frame_count = parse_benchmark_frame_count(command_line);
+        if (benchmark_frame_count > 0)
+        {
+            const csp::solver_mode benchmark_modes[2] = {
+                csp::solver_mode::tetrahedral_xpbd,
+                csp::solver_mode::camera_surface
+            };
+            MSG benchmark_message{};
+            bool continue_benchmark = true;
+            for (const csp::solver_mode mode : benchmark_modes)
+            {
+                if (!continue_benchmark) break;
+                renderer.set_solver_mode(mode);
+                update_window_title(window);
+                for (std::uint32_t frame = 0; frame < benchmark_frame_count; ++frame)
+                {
+                    while (PeekMessageW(&benchmark_message, nullptr, 0, 0, PM_REMOVE))
+                    {
+                        if (benchmark_message.message == WM_QUIT)
+                        {
+                            continue_benchmark = false;
+                            break;
+                        }
+                        TranslateMessage(&benchmark_message);
+                        DispatchMessageW(&benchmark_message);
+                    }
+                    if (!continue_benchmark) break;
+                    renderer.render(1.0f / 60.0f);
+                }
+            }
+            active_renderer = nullptr;
+            renderer.wait_gpu();
+            return 0;
+        }
 
         MSG message{};
         std::chrono::steady_clock::time_point previous_frame = std::chrono::steady_clock::now();
