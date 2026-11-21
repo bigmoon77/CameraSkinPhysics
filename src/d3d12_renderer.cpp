@@ -1039,6 +1039,149 @@ namespace csp
         }
     }
 
+    void d3d12_renderer::simulate_camera_surface(float delta_time)
+    {
+        const float clamped_delta_time = std::clamp(delta_time, 1.0f / 240.0f, 1.0f / 30.0f);
+        const std::uint32_t particle_groups = (compute_->vertex_count + 255u) / 256u;
+        const std::uint32_t edge_groups = (compute_->edge_count + 255u) / 256u;
+
+        for (compute_state::camera_gpu_body& body : compute_->camera_bodies)
+        {
+            if (body.lambda_zero_is_srv)
+            {
+                transition_resource(body.edge_lambdas[0].Get(),
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                body.lambda_zero_is_srv = false;
+            }
+
+            const std::uint32_t lambda_count = compute_->edge_count;
+            for (std::uint32_t lambda_index = 0; lambda_index < 2; ++lambda_index)
+            {
+                const std::uint32_t table = reserve_descriptor_table();
+                clear_descriptor_table(table);
+                write_buffer_uav(table, 0, body.edge_lambdas[lambda_index].Get(),
+                    lambda_count, sizeof(float));
+                const clear_constants constants{lambda_count, {0.0f, 0.0f, 0.0f}};
+                dispatch_compute(compute_->clear_pipeline.Get(), table, &constants, 4,
+                    (lambda_count + 255u) / 256u);
+            }
+            transition_resource(body.edge_lambdas[0].Get(),
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+            const std::uint32_t integration_output = 1u - body.particle_read;
+            transition_resource(body.particles[integration_output].Get(),
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            const std::uint32_t integrate_table = reserve_descriptor_table();
+            clear_descriptor_table(integrate_table);
+            write_buffer_srv(integrate_table, 0, body.particles[body.particle_read].Get(),
+                compute_->vertex_count, sizeof(simulation_particle));
+            write_buffer_uav(integrate_table, 0, body.particles[integration_output].Get(),
+                compute_->vertex_count, sizeof(simulation_particle));
+
+            integrate_constants integration{};
+            integration.particle_count = compute_->vertex_count;
+            integration.delta_time = clamped_delta_time;
+            integration.damping = 0.45f;
+            dispatch_compute(compute_->integrate_pipeline.Get(), integrate_table,
+                &integration, 8, particle_groups);
+            transition_resource(body.particles[integration_output].Get(),
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            body.particle_read = integration_output;
+
+            std::uint32_t lambda_read = 0;
+            for (std::uint32_t iteration = 0; iteration < solver_iterations; ++iteration)
+            {
+                if (body.correction_is_srv)
+                {
+                    transition_resource(body.edge_corrections.Get(),
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    body.correction_is_srv = false;
+                }
+
+                const std::uint32_t lambda_write = 1u - lambda_read;
+                const std::uint32_t solve_table = reserve_descriptor_table();
+                clear_descriptor_table(solve_table);
+                write_buffer_srv(solve_table, 0, body.particles[body.particle_read].Get(),
+                    compute_->vertex_count, sizeof(simulation_particle));
+                write_buffer_srv(solve_table, 1, compute_->surface_edges.Get(),
+                    compute_->edge_count, sizeof(surface_edge));
+                write_buffer_srv(solve_table, 2, body.edge_lambdas[lambda_read].Get(),
+                    compute_->edge_count, sizeof(float));
+                write_buffer_uav(solve_table, 0, body.edge_corrections.Get(),
+                    compute_->edge_count * 2, sizeof(DirectX::XMFLOAT4));
+                write_buffer_uav(solve_table, 1, body.edge_lambdas[lambda_write].Get(),
+                    compute_->edge_count, sizeof(float));
+
+                const tetrahedron_constants solve_constants{
+                    compute_->edge_count, clamped_delta_time, 0.8f, 0.0f
+                };
+                dispatch_compute(compute_->camera_surface_edge_pipeline.Get(), solve_table,
+                    &solve_constants, 4, edge_groups);
+
+                transition_resource(body.edge_corrections.Get(),
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                body.correction_is_srv = true;
+                transition_resource(body.edge_lambdas[lambda_write].Get(),
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                transition_resource(body.edge_lambdas[lambda_read].Get(),
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+                const std::uint32_t particle_output = 1u - body.particle_read;
+                transition_resource(body.particles[particle_output].Get(),
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                const std::uint32_t gather_table = reserve_descriptor_table();
+                clear_descriptor_table(gather_table);
+                write_buffer_srv(gather_table, 0, body.particles[body.particle_read].Get(),
+                    compute_->vertex_count, sizeof(simulation_particle));
+                write_buffer_srv(gather_table, 1, compute_->surface_edge_ranges.Get(),
+                    compute_->vertex_count, sizeof(mesh_uint2));
+                write_buffer_srv(gather_table, 2, compute_->incident_surface_edges.Get(),
+                    compute_->edge_count * 2, sizeof(std::uint32_t));
+                write_buffer_srv(gather_table, 3, body.edge_corrections.Get(),
+                    compute_->edge_count * 2, sizeof(DirectX::XMFLOAT4));
+                write_buffer_srv(gather_table, 4, compute_->surface_edges.Get(),
+                    compute_->edge_count, sizeof(surface_edge));
+                write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
+                    compute_->vertex_count, sizeof(simulation_particle));
+
+                const gather_constants gather_values{compute_->vertex_count, 0.008f, {0.0f, 0.0f}};
+                dispatch_compute(compute_->camera_surface_gather_pipeline.Get(), gather_table,
+                    &gather_values, 4, particle_groups);
+                transition_resource(body.particles[particle_output].Get(),
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                body.particle_read = particle_output;
+                lambda_read = lambda_write;
+            }
+            body.lambda_zero_is_srv = lambda_read == 0;
+        }
+    }
+
+    void d3d12_renderer::skin_camera_body(std::uint32_t body_index)
+    {
+        compute_state::camera_gpu_body& body = compute_->camera_bodies[body_index];
+        if (body.vertex_is_input_buffer)
+        {
+            transition_resource(body.vertices.Get(),
+                D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            body.vertex_is_input_buffer = false;
+        }
+
+        const std::uint32_t table = reserve_descriptor_table();
+        clear_descriptor_table(table);
+        write_buffer_srv(table, 0, body.particles[body.particle_read].Get(),
+            compute_->vertex_count, sizeof(simulation_particle));
+        write_buffer_uav(table, 0, body.vertices.Get(), compute_->vertex_count, sizeof(vertex));
+        const skin_constants constants{
+            compute_->vertex_count, {body.center_x, 0.0f, 0.0f}
+        };
+        dispatch_compute(compute_->camera_surface_skin_pipeline.Get(), table, &constants, 4,
+            (compute_->vertex_count + 255u) / 256u);
+
+        transition_resource(body.vertices.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        body.vertex_is_input_buffer = true;
+    }
+
     void d3d12_renderer::skin_body(std::uint32_t body_index)
     {
         compute_state::gpu_body& body = compute_->bodies[body_index];
