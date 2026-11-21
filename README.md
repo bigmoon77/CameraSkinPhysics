@@ -76,4 +76,4 @@ cmake --build build --config Release
 .\build\Release\CameraSkinPhysics.exe
 ```
 
-The application begins in F1 mode. Press F2 to switch to the camera-surface simulation. CSV output is written relative to the current working directory.
+The application begins in F1 mode. Press F2 to switch to the camera-surface simulation. Press Esc to close it.\n\nFor a repeatable comparison, run `CameraSkinPhysics.exe --benchmark=300`. This executes 300 fixed-60-Hz frames in F1 mode followed by 300 frames in F2 mode, then exits. The default is 300 frames per mode; values from 1 to 36,000 are accepted. Each launch creates fresh CSV files under `output/` relative to the current working directory.
