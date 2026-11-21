@@ -3,6 +3,7 @@ struct Tetrahedron { uint4 indices; float rest_volume; float compliance; float l
 StructuredBuffer<Particle> g_particles : register(t0);
 StructuredBuffer<Tetrahedron> g_tetrahedra : register(t1);
 StructuredBuffer<float> g_inverse_masses : register(t2);
+StructuredBuffer<float> g_tet_lambda_in : register(t3);
 RWStructuredBuffer<float4> g_tet_corrections : register(u0);
 RWStructuredBuffer<float> g_tet_lambdas : register(u1);
 cbuffer TetrahedronConstants : register(b0)
@@ -39,9 +40,10 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float alpha = tet.compliance / max(delta_time * delta_time, 1.0e-8f);
     const float denominator = w0 * dot(g0,g0) + w1 * dot(g1,g1)
         + w2 * dot(g2,g2) + w3 * dot(g3,g3) + alpha;
-    const float delta_lambda = (-constraint - alpha * tet.lambda) / max(denominator, 1.0e-9f);
+    const float old_lambda = g_tet_lambda_in[index];
+    const float delta_lambda = (-constraint - alpha * old_lambda) / max(denominator, 1.0e-9f);
     const float scaled_lambda = delta_lambda * relaxation;
-    g_tet_lambdas[index] = tet.lambda + scaled_lambda;
+    g_tet_lambdas[index] = old_lambda + scaled_lambda;
     g_tet_corrections[index * 4 + 0] = float4(w0 * g0 * scaled_lambda, 0.0f);
     g_tet_corrections[index * 4 + 1] = float4(w1 * g1 * scaled_lambda, 0.0f);
     g_tet_corrections[index * 4 + 2] = float4(w2 * g2 * scaled_lambda, 0.0f);
