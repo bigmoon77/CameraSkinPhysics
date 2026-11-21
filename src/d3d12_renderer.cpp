@@ -235,6 +235,9 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_skin_pipeline;
         std::array<std::unique_ptr<benchmark_log>, 2> logs;
         std::array<std::uint64_t, 2> benchmark_frame_numbers{};
+        std::uint64_t tetrahedral_buffer_bytes = 0;
+        std::uint64_t camera_surface_buffer_bytes = 0;
+        std::uint64_t resident_simulation_buffer_bytes = 0;
     };
 
     d3d12_renderer::~d3d12_renderer()
@@ -808,6 +811,43 @@ namespace csp
             WaitForSingleObject(fence_event_, INFINITE);
         }
 
+        const auto resource_bytes = [](ID3D12Resource* resource) -> std::uint64_t
+        {
+            return resource != nullptr ? resource->GetDesc().Width : 0ull;
+        };
+
+        for (const compute_state::gpu_body& body : compute_->bodies)
+        {
+            compute_->tetrahedral_buffer_bytes += resource_bytes(body.particles[0].Get());
+            compute_->tetrahedral_buffer_bytes += resource_bytes(body.particles[1].Get());
+            compute_->tetrahedral_buffer_bytes += resource_bytes(body.tetrahedron_corrections.Get());
+            compute_->tetrahedral_buffer_bytes += resource_bytes(body.tetrahedron_lambdas[0].Get());
+            compute_->tetrahedral_buffer_bytes += resource_bytes(body.tetrahedron_lambdas[1].Get());
+            compute_->tetrahedral_buffer_bytes += resource_bytes(body.vertices.Get());
+        }
+        compute_->tetrahedral_buffer_bytes += resource_bytes(compute_->inverse_masses.Get());
+        compute_->tetrahedral_buffer_bytes += resource_bytes(compute_->rest_positions.Get());
+        compute_->tetrahedral_buffer_bytes += resource_bytes(compute_->tetrahedra.Get());
+        compute_->tetrahedral_buffer_bytes += resource_bytes(compute_->incidence_ranges.Get());
+        compute_->tetrahedral_buffer_bytes += resource_bytes(compute_->incident_tetrahedra.Get());
+        compute_->tetrahedral_buffer_bytes += resource_bytes(compute_->tetrahedron_indices.Get());
+        compute_->tetrahedral_buffer_bytes += resource_bytes(compute_->surface_mappings.Get());
+
+        for (const compute_state::camera_gpu_body& body : compute_->camera_bodies)
+        {
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.particles[0].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.particles[1].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_corrections.Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_lambdas[0].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_lambdas[1].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.vertices.Get());
+        }
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edges.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edge_ranges.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_edges.Get());
+        compute_->resident_simulation_buffer_bytes =
+            compute_->tetrahedral_buffer_bytes + compute_->camera_surface_buffer_bytes;
+
         try
         {
             compute_->logs[0] = std::make_unique<benchmark_log>("output/benchmark_xpbd.csv");
@@ -1285,7 +1325,9 @@ namespace csp
             static_cast<double>(capture_ticks) * ticks_to_ms,
             static_cast<double>(collision_ticks) * ticks_to_ms,
             static_cast<double>(render_ticks) * ticks_to_ms,
-            particle_count, tetrahedron_count);
+            particle_count, tetrahedron_count,
+            mode_index == 1u ? compute_->camera_surface_buffer_bytes : compute_->tetrahedral_buffer_bytes,
+            compute_->resident_simulation_buffer_bytes);
 
         const D3D12_RANGE written_range{0, 0};
         timestamp_readback_->Unmap(0, &written_range);
