@@ -9,14 +9,14 @@ The target render mesh contains exactly 100,000 vertices per sphere. Render vert
 
 ## Current implementation status
 
-- Win32 + D3D12 device and swap-chain bootstrap.
+- Win32 + D3D12 device, swap chain, depth buffer, graphics pipeline, and two-body sphere rendering.
 - Deterministic 100,000-vertex sphere surface generator.
 - CPU tetrahedral lattice generation, rest-volume construction, particle-to-tetrahedron incidence CSR, and surface-to-particle mapping.
 - Initial HLSL kernels for integration, tetrahedral volume constraints, gather-based correction, and camera-space collision.
 - CMake shader compilation through DXC.
 - CSV benchmark writer interface.
 
-**The executable currently initializes D3D12, generates and validates the sphere/tetrahedral topology, and clears the swap chain. The compute kernels are not yet dispatched and the mesh is not yet rendered.** GPU timings will be added only after their passes are dispatched and timestamp queries are read back.
+**The current executable renders two static, slightly overlapping 100k-vertex spheres. The compute kernels are not yet dispatched, so deformation and GPU timing are not implemented yet.** The tetrahedral lattice is generated and its counts are shown in the window title.
 
 ## Requirements
 
