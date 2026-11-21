@@ -631,13 +631,19 @@ namespace csp
         compute_->particle_count = static_cast<std::uint32_t>(volume_mesh.particles.size());
         compute_->tetrahedron_count = static_cast<std::uint32_t>(volume_mesh.tetrahedra.size());
         compute_->vertex_count = static_cast<std::uint32_t>(surface_mesh.vertices.size());
-        if (compute_->particle_count == 0 || compute_->tetrahedron_count == 0 || compute_->vertex_count == 0) return false;
+        compute_->edge_count = static_cast<std::uint32_t>(surface_mesh.edges.size());
+        if (compute_->particle_count == 0 || compute_->tetrahedron_count == 0
+            || compute_->vertex_count == 0 || compute_->edge_count == 0
+            || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
+            || surface_mesh.incident_edges.size() != surface_mesh.edges.size() * 2)
+            return false;
 
         const auto upload_vector = [this](const auto& values) -> Microsoft::WRL::ComPtr<ID3D12Resource>
         {
             if (values.empty()) return nullptr;
             return create_upload_buffer(device_.Get(), values.data(), values.size() * sizeof(values[0]));
         };
+
         compute_->inverse_masses = upload_vector(volume_mesh.inverse_masses);
         std::vector<DirectX::XMFLOAT4> rest_positions;
         rest_positions.reserve(volume_mesh.particles.size());
@@ -650,69 +656,143 @@ namespace csp
         compute_->incident_tetrahedra = upload_vector(volume_mesh.incident_tetrahedra);
         compute_->tetrahedron_indices = upload_vector(volume_mesh.tetrahedron_indices);
         compute_->surface_mappings = upload_vector(volume_mesh.surface_mappings);
-        if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra || !compute_->incidence_ranges
-            || !compute_->incident_tetrahedra || !compute_->tetrahedron_indices || !compute_->surface_mappings) return false;
+        compute_->surface_edges = upload_vector(surface_mesh.edges);
+        compute_->surface_edge_ranges = upload_vector(surface_mesh.edge_incidence_ranges);
+        compute_->incident_surface_edges = upload_vector(surface_mesh.incident_edges);
 
-        std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> staging_resources;
+        if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra
+            || !compute_->incidence_ranges || !compute_->incident_tetrahedra
+            || !compute_->tetrahedron_indices || !compute_->surface_mappings
+            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_edges)
+            return false;
+
+        std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> volume_uploads;
+        std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> surface_uploads;
+
         for (std::uint32_t body_index = 0; body_index < 2; ++body_index)
         {
-            compute_state::gpu_body& body = compute_->bodies[body_index];
-            body.center_x = body_index == 0 ? -1.08f : 1.08f;
-            std::vector<simulation_particle> initial_particles = volume_mesh.particles;
-            for (simulation_particle& particle : initial_particles)
+            const float center_x = body_index == 0 ? -1.08f : 1.08f;
+            const float initial_velocity_x = body_index == 0 ? 0.65f : -0.65f;
+
+            compute_state::gpu_body& volume_body = compute_->bodies[body_index];
+            volume_body.center_x = center_x;
+            std::vector<simulation_particle> volume_particles = volume_mesh.particles;
+            for (simulation_particle& particle : volume_particles)
             {
-                particle.position[0] += body.center_x;
-                particle.velocity[0] = body_index == 0 ? 0.65f : -0.65f;
+                particle.position[0] += center_x;
+                particle.velocity[0] = initial_velocity_x;
             }
 
-            const UINT64 particle_bytes = initial_particles.size() * sizeof(simulation_particle);
-            const Microsoft::WRL::ComPtr<ID3D12Resource> particle_upload =
-                create_upload_buffer(device_.Get(), initial_particles.data(), particle_bytes);
-            if (!particle_upload) return false;
-            staging_resources.push_back(particle_upload);
+            const UINT64 volume_particle_bytes =
+                static_cast<UINT64>(volume_particles.size()) * sizeof(simulation_particle);
+            volume_uploads[body_index] = create_upload_buffer(device_.Get(),
+                volume_particles.data(), volume_particle_bytes);
+            if (!volume_uploads[body_index]) return false;
 
             for (std::uint32_t buffer_index = 0; buffer_index < 2; ++buffer_index)
             {
-                body.particles[buffer_index] = create_buffer(device_.Get(), particle_bytes,
+                volume_body.particles[buffer_index] = create_buffer(device_.Get(), volume_particle_bytes,
                     D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                     D3D12_RESOURCE_STATE_COPY_DEST);
-                if (!body.particles[buffer_index]) return false;
+                if (!volume_body.particles[buffer_index]) return false;
             }
 
-            const UINT64 correction_bytes = static_cast<UINT64>(compute_->tetrahedron_count) * 4 * sizeof(DirectX::XMFLOAT4);
-            const UINT64 lambda_bytes = static_cast<UINT64>(compute_->tetrahedron_count) * 7 * sizeof(float);
+            const UINT64 tetrahedron_correction_bytes =
+                static_cast<UINT64>(compute_->tetrahedron_count) * 4 * sizeof(DirectX::XMFLOAT4);
+            const UINT64 tetrahedron_lambda_bytes =
+                static_cast<UINT64>(compute_->tetrahedron_count) * 7 * sizeof(float);
             const UINT64 vertex_bytes = static_cast<UINT64>(compute_->vertex_count) * sizeof(vertex);
-            body.tetrahedron_corrections = create_buffer(device_.Get(), correction_bytes,
+
+            volume_body.tetrahedron_corrections = create_buffer(device_.Get(), tetrahedron_correction_bytes,
                 D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             for (std::uint32_t buffer_index = 0; buffer_index < 2; ++buffer_index)
             {
-                body.tetrahedron_lambdas[buffer_index] = create_buffer(device_.Get(), lambda_bytes,
+                volume_body.tetrahedron_lambdas[buffer_index] = create_buffer(device_.Get(), tetrahedron_lambda_bytes,
                     D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             }
-            body.vertices = create_buffer(device_.Get(), vertex_bytes, D3D12_HEAP_TYPE_DEFAULT,
+            volume_body.vertices = create_buffer(device_.Get(), vertex_bytes, D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-            if (!body.tetrahedron_corrections || !body.tetrahedron_lambdas[0]
-                || !body.tetrahedron_lambdas[1] || !body.vertices) return false;
+            if (!volume_body.tetrahedron_corrections || !volume_body.tetrahedron_lambdas[0]
+                || !volume_body.tetrahedron_lambdas[1] || !volume_body.vertices) return false;
 
-            body.vertex_view.BufferLocation = body.vertices->GetGPUVirtualAddress();
-            body.vertex_view.SizeInBytes = static_cast<UINT>(vertex_bytes);
-            body.vertex_view.StrideInBytes = sizeof(vertex);
+            volume_body.vertex_view.BufferLocation = volume_body.vertices->GetGPUVirtualAddress();
+            volume_body.vertex_view.SizeInBytes = static_cast<UINT>(vertex_bytes);
+            volume_body.vertex_view.StrideInBytes = sizeof(vertex);
+
+            compute_state::camera_gpu_body& camera_body = compute_->camera_bodies[body_index];
+            camera_body.center_x = center_x;
+            std::vector<simulation_particle> surface_particles(compute_->vertex_count);
+            for (std::uint32_t vertex_index = 0; vertex_index < compute_->vertex_count; ++vertex_index)
+            {
+                const vertex& source = surface_mesh.vertices[vertex_index];
+                simulation_particle& particle = surface_particles[vertex_index];
+                particle.position[0] = source.position[0] + center_x;
+                particle.position[1] = source.position[1];
+                particle.position[2] = source.position[2];
+                particle.position[3] = 1.0f;
+                particle.velocity[0] = initial_velocity_x;
+                particle.velocity[1] = 0.0f;
+                particle.velocity[2] = 0.0f;
+                particle.velocity[3] = 0.0f;
+            }
+
+            const UINT64 surface_particle_bytes =
+                static_cast<UINT64>(surface_particles.size()) * sizeof(simulation_particle);
+            surface_uploads[body_index] = create_upload_buffer(device_.Get(),
+                surface_particles.data(), surface_particle_bytes);
+            if (!surface_uploads[body_index]) return false;
+
+            for (std::uint32_t buffer_index = 0; buffer_index < 2; ++buffer_index)
+            {
+                camera_body.particles[buffer_index] = create_buffer(device_.Get(), surface_particle_bytes,
+                    D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                    D3D12_RESOURCE_STATE_COPY_DEST);
+                if (!camera_body.particles[buffer_index]) return false;
+            }
+
+            const UINT64 edge_correction_bytes =
+                static_cast<UINT64>(compute_->edge_count) * 2 * sizeof(DirectX::XMFLOAT4);
+            const UINT64 edge_lambda_bytes = static_cast<UINT64>(compute_->edge_count) * sizeof(float);
+            camera_body.edge_corrections = create_buffer(device_.Get(), edge_correction_bytes,
+                D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            for (std::uint32_t buffer_index = 0; buffer_index < 2; ++buffer_index)
+            {
+                camera_body.edge_lambdas[buffer_index] = create_buffer(device_.Get(), edge_lambda_bytes,
+                    D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            }
+            camera_body.vertices = create_buffer(device_.Get(), vertex_bytes, D3D12_HEAP_TYPE_DEFAULT,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            if (!camera_body.edge_corrections || !camera_body.edge_lambdas[0]
+                || !camera_body.edge_lambdas[1] || !camera_body.vertices) return false;
+
+            camera_body.vertex_view.BufferLocation = camera_body.vertices->GetGPUVirtualAddress();
+            camera_body.vertex_view.SizeInBytes = static_cast<UINT>(vertex_bytes);
+            camera_body.vertex_view.StrideInBytes = sizeof(vertex);
         }
 
         if (FAILED(command_allocators_[0]->Reset())) return false;
         if (FAILED(command_list_->Reset(command_allocators_[0].Get(), nullptr))) return false;
         for (std::uint32_t body_index = 0; body_index < 2; ++body_index)
         {
-            const Microsoft::WRL::ComPtr<ID3D12Resource>& upload = staging_resources[body_index];
             for (std::uint32_t buffer_index = 0; buffer_index < 2; ++buffer_index)
             {
-                ID3D12Resource* destination = compute_->bodies[body_index].particles[buffer_index].Get();
-                command_list_->CopyBufferRegion(destination, 0, upload.Get(), 0,
-                    static_cast<UINT64>(compute_->particle_count) * sizeof(simulation_particle));
-                transition_barrier(command_list_.Get(), destination, D3D12_RESOURCE_STATE_COPY_DEST,
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                ID3D12Resource* volume_destination =
+                    compute_->bodies[body_index].particles[buffer_index].Get();
+                command_list_->CopyBufferRegion(volume_destination, 0, volume_uploads[body_index].Get(),
+                    0, static_cast<UINT64>(compute_->particle_count) * sizeof(simulation_particle));
+                transition_barrier(command_list_.Get(), volume_destination,
+                    D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+                ID3D12Resource* camera_destination =
+                    compute_->camera_bodies[body_index].particles[buffer_index].Get();
+                command_list_->CopyBufferRegion(camera_destination, 0, surface_uploads[body_index].Get(),
+                    0, static_cast<UINT64>(compute_->vertex_count) * sizeof(simulation_particle));
+                transition_barrier(command_list_.Get(), camera_destination,
+                    D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             }
         }
         if (FAILED(command_list_->Close())) return false;
@@ -728,7 +808,8 @@ namespace csp
 
         try
         {
-            compute_->log = std::make_unique<benchmark_log>("output/benchmark.csv");
+            compute_->logs[0] = std::make_unique<benchmark_log>("output/benchmark_xpbd.csv");
+            compute_->logs[1] = std::make_unique<benchmark_log>("output/benchmark_camera_surface.csv");
         }
         catch (const std::exception&)
         {
