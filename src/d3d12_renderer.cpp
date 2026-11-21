@@ -1,6 +1,7 @@
 #include "d3d12_renderer.hpp"
 
 #include <DirectXMath.h>
+#include <d3d12sdklayers.h>
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
