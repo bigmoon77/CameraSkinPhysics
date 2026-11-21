@@ -1346,7 +1346,7 @@ namespace csp
             if (use_camera_surface)
             {
                 compute_state::camera_gpu_body& body = compute_->camera_bodies[body_index];
-                *(&particle_read) = &body.particle_read;
+                particle_read = &body.particle_read;
                 input_particles = body.particles[body.particle_read].Get();
                 output_particles = body.particles[1u - body.particle_read].Get();
             }
