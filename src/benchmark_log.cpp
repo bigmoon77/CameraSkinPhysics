@@ -13,8 +13,9 @@ namespace csp
         if (!stream_)
             throw std::runtime_error("Failed to open benchmark CSV.");
 
-        stream_ << "frame,cpu_frame_ms,gpu_simulation_ms,gpu_depth_capture_ms,"
-            << "gpu_collision_ms,gpu_render_ms,particle_count,tetrahedron_count\n";
+        stream_ << "frame,cpu_frame_ms,cpu_fps,gpu_simulation_ms,gpu_depth_capture_ms,"
+            << "gpu_collision_ms,gpu_render_ms,gpu_total_ms,gpu_fps,particle_count,"
+            << "tetrahedron_count,solver_buffer_bytes,resident_simulation_buffer_bytes\n";
     }
 
     benchmark_log::~benchmark_log()
@@ -25,10 +26,18 @@ namespace csp
     void benchmark_log::write_frame(std::uint64_t frame_index, double cpu_frame_ms,
         double gpu_simulation_ms, double gpu_depth_capture_ms, double gpu_collision_ms,
         double gpu_render_ms, std::uint64_t simulation_particle_count,
-        std::uint64_t tetrahedron_count)
+        std::uint64_t tetrahedron_count, std::uint64_t solver_buffer_bytes,
+        std::uint64_t resident_simulation_buffer_bytes)
     {
-        stream_ << frame_index << ',' << cpu_frame_ms << ',' << gpu_simulation_ms << ','
-            << gpu_depth_capture_ms << ',' << gpu_collision_ms << ',' << gpu_render_ms << ','
-            << simulation_particle_count << ',' << tetrahedron_count << '\n';
+        const double gpu_total_ms = gpu_simulation_ms + gpu_depth_capture_ms
+            + gpu_collision_ms + gpu_render_ms;
+        const double cpu_fps = cpu_frame_ms > 0.0 ? 1000.0 / cpu_frame_ms : 0.0;
+        const double gpu_fps = gpu_total_ms > 0.0 ? 1000.0 / gpu_total_ms : 0.0;
+
+        stream_ << frame_index << ',' << cpu_frame_ms << ',' << cpu_fps << ','
+            << gpu_simulation_ms << ',' << gpu_depth_capture_ms << ','
+            << gpu_collision_ms << ',' << gpu_render_ms << ',' << gpu_total_ms << ','
+            << gpu_fps << ',' << simulation_particle_count << ',' << tetrahedron_count << ','
+            << solver_buffer_bytes << ',' << resident_simulation_buffer_bytes << '\n';
     }
 }
