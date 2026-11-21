@@ -1,9 +1,9 @@
 #include "d3d12_renderer.hpp"
 #include "sphere_mesh.hpp"
+#include "tetrahedral_mesh.hpp"
 
-#include <chrono>
-#include <exception>
 #include <windows.h>
+#include <string>
 
 namespace
 {
@@ -50,12 +50,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
         return -1;
     }
 
-    const csp::sphere_mesh reference_mesh = csp::make_sphere_mesh();
-    if (reference_mesh.vertices.size() != 100000)
+    const csp::sphere_mesh surface_mesh = csp::make_sphere_mesh();
+    if (surface_mesh.vertices.size() != 100000)
     {
         MessageBoxW(window, L"Sphere vertex count validation failed.", L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
         return -1;
     }
+
+    const csp::tetrahedral_mesh volume_mesh = csp::make_tetrahedral_mesh(surface_mesh);
+    const std::wstring title = L"CameraSkinPhysics - D3D12 | Surface vertices: "
+        + std::to_wstring(surface_mesh.vertices.size())
+        + L" | Simulation particles: " + std::to_wstring(volume_mesh.particles.size())
+        + L" | Tetrahedra: " + std::to_wstring(volume_mesh.tetrahedra.size());
+    SetWindowTextW(window, title.c_str());
 
     ShowWindow(window, show_command);
     MSG message{};

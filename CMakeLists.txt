@@ -21,7 +21,13 @@ compile_hlsl(camera_collision.hlsl main cs_6_0 camera_collision)
 compile_hlsl(capture_surface.hlsl VSMain vs_6_0 capture_surface_vs)
 compile_hlsl(capture_surface.hlsl PSMain ps_6_0 capture_surface_ps)
 add_custom_target(CameraSkinPhysicsShaders ALL DEPENDS \${SHADER_OUTPUTS})
-add_executable(CameraSkinPhysics WIN32 src/main.cpp src/d3d12_renderer.cpp src/sphere_mesh.cpp src/benchmark_log.cpp)
+add_executable(CameraSkinPhysics WIN32
+    src/main.cpp
+    src/d3d12_renderer.cpp
+    src/sphere_mesh.cpp
+    src/tetrahedral_mesh.cpp
+    src/benchmark_log.cpp
+)
 add_dependencies(CameraSkinPhysics CameraSkinPhysicsShaders)
 target_compile_features(CameraSkinPhysics PRIVATE cxx_std_20)
 target_compile_definitions(CameraSkinPhysics PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
