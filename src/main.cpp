@@ -2,8 +2,8 @@
 #include "sphere_mesh.hpp"
 #include "tetrahedral_mesh.hpp"
 
-#include <windows.h>
 #include <string>
+#include <windows.h>
 
 namespace
 {
@@ -32,23 +32,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
     if (RegisterClassExW(&window_class) == 0) return -1;
 
     RECT window_rect{0, 0, 1440, 900};
-    AdjustWindowRect(&window_rect, WS_OVERLAPPEDWINDOW, FALSE);
+    const DWORD window_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    AdjustWindowRect(&window_rect, window_style, FALSE);
     HWND window = CreateWindowExW(0, window_class_name, L"CameraSkinPhysics - Direct3D 12",
-        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+        window_style, CW_USEDEFAULT, CW_USEDEFAULT,
         window_rect.right - window_rect.left, window_rect.bottom - window_rect.top,
         nullptr, nullptr, instance, nullptr);
     if (window == nullptr) return -1;
-
-    RECT client_rect{};
-    GetClientRect(window, &client_rect);
-    csp::d3d12_renderer renderer;
-    if (!renderer.initialize(window,
-        static_cast<std::uint32_t>(client_rect.right - client_rect.left),
-        static_cast<std::uint32_t>(client_rect.bottom - client_rect.top)))
-    {
-        MessageBoxW(window, L"Direct3D 12 initialization failed.", L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
-        return -1;
-    }
 
     const csp::sphere_mesh surface_mesh = csp::make_sphere_mesh();
     if (surface_mesh.vertices.size() != 100000)
@@ -56,8 +46,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
         MessageBoxW(window, L"Sphere vertex count validation failed.", L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
         return -1;
     }
-
     const csp::tetrahedral_mesh volume_mesh = csp::make_tetrahedral_mesh(surface_mesh);
+
+    RECT client_rect{};
+    GetClientRect(window, &client_rect);
+    csp::d3d12_renderer renderer;
+    if (!renderer.initialize(window,
+        static_cast<std::uint32_t>(client_rect.right - client_rect.left),
+        static_cast<std::uint32_t>(client_rect.bottom - client_rect.top), surface_mesh))
+    {
+        MessageBoxW(window, L"Direct3D 12 initialization or sphere pipeline creation failed.",
+            L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
+        return -1;
+    }
+
     const std::wstring title = L"CameraSkinPhysics - D3D12 | Surface vertices: "
         + std::to_wstring(surface_mesh.vertices.size())
         + L" | Simulation particles: " + std::to_wstring(volume_mesh.particles.size())
