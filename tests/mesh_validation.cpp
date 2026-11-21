@@ -38,7 +38,7 @@ int main()
     check(surface.indices.size() == 599988, "default sphere index count must match its grid topology");
     check(surface.indices.size() % 3 == 0, "sphere index count must be divisible by three");
 
-    check(surface.edges.size() == 299994, "default sphere must contain 299,200 unique surface edges");
+    check(surface.edges.size() == 299994, "default sphere must contain 299,994 unique surface edges");
     check(surface.edge_incidence_ranges.size() == surface.vertices.size(),
         "surface edge incidence range count must match vertex count");
     check(surface.incident_edges.size() == surface.edges.size() * 2,
