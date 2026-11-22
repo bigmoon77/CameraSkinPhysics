@@ -203,8 +203,8 @@ namespace
         wchar_t blender_path[MAX_PATH]{};
         if (SearchPathW(nullptr, L"blender.exe", nullptr, MAX_PATH, blender_path, nullptr) == 0)
         {
-            MessageBoxW(parameter_window, L"blender.exe が PATH に見つかりません。Blender の bin フォルダーを PATH に追加してください。",
-                L"モデル読み込み", MB_ICONERROR | MB_OK);
+            MessageBoxW(parameter_window, L"blender.exe \u304c PATH \u306b\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002Blender \u306e bin \u30d5\u30a9\u30eb\u30c0\u30fc\u3092 PATH \u306b\u8ffd\u52a0\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+                L"\u30e2\u30c7\u30eb\u8aad\u307f\u8fbc\u307f", MB_ICONERROR | MB_OK);
             return false;
         }
 
@@ -338,11 +338,11 @@ with open(output_path, "w", encoding="utf-8") as output:
             performance_label = CreateWindowExW(0, L"STATIC", L"CPU -- ms    GPU -- ms",
                 WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 62 + 40,
                 520, 68, window, nullptr, GetModuleHandleW(nullptr), nullptr);
-            CreateWindowExW(0, L"BUTTON", L"Blender モデルを読み込む",
+            CreateWindowExW(0, L"BUTTON", L"Blender \u30e2\u30c7\u30eb\u3092\u8aad\u307f\u8fbc\u3080",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 16, 18 + parameter_count * 62 + 118,
                 240, 32, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_model_id)),
                 GetModuleHandleW(nullptr), nullptr);
-            CreateWindowExW(0, L"BUTTON", L"シミュレーションをやり直す",
+            CreateWindowExW(0, L"BUTTON", L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u3092\u3084\u308a\u76f4\u3059",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 280, 18 + parameter_count * 62 + 118,
                 240, 32, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_restart_id)),
                 GetModuleHandleW(nullptr), nullptr);
