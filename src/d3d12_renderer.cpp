@@ -720,7 +720,7 @@ namespace csp
         compute_->edge_count = static_cast<std::uint32_t>(surface_mesh.edges.size());
         compute_->triangle_count = static_cast<std::uint32_t>(surface_mesh.triangle_areas.size());
         compute_->bending_count = static_cast<std::uint32_t>(surface_mesh.bending.size());
-        const shape_matching_clusters shape_clusters = build_shape_matching_clusters(surface_mesh);
+        const shape_matching_clusters shape_clusters = build_shape_matching_clusters(surface_mesh, 2048u, 2u);
         compute_->shape_cluster_count = static_cast<std::uint32_t>(shape_clusters.cluster_vertex_ranges.size());
         compute_->shape_membership_count = static_cast<std::uint32_t>(shape_clusters.vertex_clusters.size());
         if (compute_->particle_count == 0 || compute_->tetrahedron_count == 0
