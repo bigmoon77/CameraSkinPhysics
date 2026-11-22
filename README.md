@@ -86,9 +86,11 @@ cmake --build build --config Release
 ctest --test-dir build --output-on-failure
 ```
 
-The CTest suite includes two portable tests:
+The CTest suite includes four portable tests:
 - `CameraSkinPhysics.MeshValidation`: sphere topology, outward triangle winding, unique surface edges, edge CSR, tetrahedron indices/volumes, tetrahedral CSR and rest-pose surface mappings.
+- `CameraSkinPhysics.ObjMeshValidation`: OBJ vertex/face parsing, index validation and generic surface topology generation.
 - `CameraSkinPhysics.BenchmarkLogValidation`: CSV column count, CPU/GPU FPS calculations, fresh-file truncation and simulation-buffer byte fields.
+- `CameraSkinPhysics.SkeletalAnimationValidation`: bone hierarchy parsing, normalized weights, frame interpolation and weighted vertex skinning.
 
 ## Build the Windows comparison app
 
