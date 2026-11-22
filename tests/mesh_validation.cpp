@@ -91,8 +91,14 @@ int main()
     }
     for (const csp::bending_constraint& bend : surface.bending)
     {
+        bool indices_valid = true;
         for (const std::uint32_t index : bend.indices)
-            if (index >= surface.vertices.size()) surface_constraints_valid = false;
+            if (index >= surface.vertices.size()) indices_valid = false;
+        if (!indices_valid)
+        {
+            surface_constraints_valid = false;
+            continue;
+        }
         if (!finite_value(bend.rest_distance) || !(bend.rest_distance > 0.0f) || !(bend.compliance >= 0.0f)
             || !finite_value(bend.compliance))
         {
@@ -203,6 +209,18 @@ int main()
         && open_surface.incident_triangle_corners.size() == 6u,
         "open surface must also generate complete triangle area CSR adjacency");
 
+
+    csp::sphere_mesh single_triangle{};
+    single_triangle.vertices.resize(3);
+    single_triangle.vertices[1].position[0] = 1.0f;
+    single_triangle.vertices[2].position[1] = 1.0f;
+    single_triangle.indices = {0u, 1u, 2u};
+    csp::build_surface_constraints(single_triangle);
+    check(single_triangle.bending.empty(),
+        "single-triangle surface must not generate a bending hinge");
+    check(single_triangle.bending_incidence_ranges.size() == 3u
+        && single_triangle.incident_bending_corners.empty(),
+        "single-triangle surface must generate valid empty bending CSR ranges");
 
     bool surface_edges_valid = true;
     for (std::size_t edge_index = 0; edge_index < surface.edges.size(); ++edge_index)
