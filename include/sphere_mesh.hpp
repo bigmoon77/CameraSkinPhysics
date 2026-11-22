@@ -34,7 +34,7 @@ namespace csp
     {
         // Shared edge endpoints followed by the opposite vertex of each face.
         std::uint32_t indices[4];
-        float rest_angle;
+        float rest_distance;
         float compliance;
     };
 
@@ -59,6 +59,9 @@ namespace csp
         // Encodes triangle_index * 3 + corner_index for each incident vertex.
         std::vector<std::uint32_t> incident_triangle_corners;
         std::vector<bending_constraint> bending;
+        std::vector<mesh_uint2> bending_incidence_ranges;
+        // Encodes bending_constraint_index * 4 + corner_index.
+        std::vector<std::uint32_t> incident_bending_corners;
         surface_topology_info topology;
     };
 
