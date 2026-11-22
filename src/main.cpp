@@ -28,12 +28,14 @@ namespace
     constexpr int parameter_pause_id = 201;
     constexpr int parameter_model_id = 202;
     constexpr int parameter_restart_id = 203;
+    constexpr int capture_resolution_id = 204;
     constexpr int parameter_count = 13;
     HWND parameter_sliders[parameter_count]{};
     HWND parameter_value_labels[parameter_count]{};
     HWND parameter_window = nullptr;
     HWND performance_label = nullptr;
     HWND pause_button = nullptr;
+    HWND capture_resolution_combo = nullptr;
     csp::d3d12_renderer* active_renderer = nullptr;
     bool benchmark_running = false;
     std::filesystem::path active_obj_path;
@@ -175,6 +177,24 @@ namespace
         }
     }
 
+    void update_capture_resolution_control()
+    {
+        if (active_renderer == nullptr || capture_resolution_combo == nullptr) return;
+        const std::uint32_t current_resolution = active_renderer->get_capture_resolution();
+        const LRESULT item_count = SendMessageW(capture_resolution_combo, CB_GETCOUNT, 0, 0);
+        for (LRESULT index = 0; index < item_count; ++index)
+        {
+            const LRESULT item_resolution = SendMessageW(capture_resolution_combo,
+                CB_GETITEMDATA, static_cast<WPARAM>(index), 0);
+            if (item_resolution == static_cast<LRESULT>(current_resolution))
+            {
+                SendMessageW(capture_resolution_combo, CB_SETCURSEL,
+                    static_cast<WPARAM>(index), 0);
+                return;
+            }
+        }
+    }
+
     void update_performance_controls()
     {
         if (active_renderer == nullptr || performance_label == nullptr) return;
@@ -185,6 +205,8 @@ namespace
             << L"CPU\u30d5\u30ec\u30fc\u30e0 " << metrics.cpu_frame_ms << L" ms    GPU\u5408\u8a08 " << metrics.gpu_total_ms << L" ms\n"
             << L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3 " << metrics.gpu_simulation_ms << L" ms    \u63a5\u89e6\u51e6\u7406 "
             << metrics.gpu_collision_ms << L" ms    \u63cf\u753b " << metrics.gpu_render_ms << L" ms\n"
+            << L"  Collision compute " << metrics.gpu_collision_compute_ms
+            << L" ms    Contact apply " << metrics.gpu_contact_apply_ms << L" ms\n"
             << L"\u5236\u7d04\u8a08\u7b97 " << metrics.camera_constraint_solve_ms << L" ms    \u88dc\u6b63\u96c6\u7d04 "
             << metrics.camera_gather_ms << L" ms";
         SetWindowTextW(performance_label, text.str().c_str());
@@ -503,18 +525,36 @@ scene.frame_set(original_frame)
                 GetModuleHandleW(nullptr), nullptr);
             performance_label = CreateWindowExW(0, L"STATIC", L"CPU -- ms    GPU -- ms",
                 WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 62 + 40,
-                520, 68, window, nullptr, GetModuleHandleW(nullptr), nullptr);
+                520, 88, window, nullptr, GetModuleHandleW(nullptr), nullptr);
             CreateWindowExW(0, L"BUTTON", L"Blender \u30e2\u30c7\u30eb\u3092\u8aad\u307f\u8fbc\u3080",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 16, 18 + parameter_count * 62 + 118,
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 16, 18 + parameter_count * 62 + 138,
                 240, 32, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_model_id)),
                 GetModuleHandleW(nullptr), nullptr);
             CreateWindowExW(0, L"BUTTON", L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u3092\u3084\u308a\u76f4\u3059",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 280, 18 + parameter_count * 62 + 118,
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 280, 18 + parameter_count * 62 + 138,
                 240, 32, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_restart_id)),
                 GetModuleHandleW(nullptr), nullptr);
+            CreateWindowExW(0, L"STATIC", L"\u63a5\u89e6\u5224\u5b9a\u89e3\u50cf\u5ea6",
+                WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 62 + 185,
+                190, 24, window, nullptr, GetModuleHandleW(nullptr), nullptr);
+            capture_resolution_combo = CreateWindowExW(0, WC_COMBOBOXW, L"",
+                WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+                220, 18 + parameter_count * 62 + 180, 180, 180, window,
+                reinterpret_cast<HMENU>(static_cast<INT_PTR>(capture_resolution_id)),
+                GetModuleHandleW(nullptr), nullptr);
+            const std::uint32_t capture_resolutions[] = {256u, 512u, 1024u, 2048u};
+            for (const std::uint32_t resolution : capture_resolutions)
+            {
+                const std::wstring item = std::to_wstring(resolution) + L" x " + std::to_wstring(resolution);
+                const LRESULT item_index = SendMessageW(capture_resolution_combo,
+                    CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(item.c_str()));
+                SendMessageW(capture_resolution_combo, CB_SETITEMDATA,
+                    static_cast<WPARAM>(item_index), static_cast<LPARAM>(resolution));
+            }
             update_parameter_controls();
+            update_capture_resolution_control();
             update_performance_controls();
-            parameter_content_height = 18 + parameter_count * 62 + 195;
+            parameter_content_height = 18 + parameter_count * 62 + 245;
             update_parameter_scrollbar(window);
             return 0;
         }
@@ -572,6 +612,27 @@ scene.frame_set(original_frame)
         if (message == WM_COMMAND && LOWORD(wparam) == parameter_restart_id)
         {
             relaunch_application();
+            return 0;
+        }
+        if (message == WM_COMMAND && LOWORD(wparam) == capture_resolution_id
+            && HIWORD(wparam) == CBN_SELCHANGE)
+        {
+            if (active_renderer != nullptr && capture_resolution_combo != nullptr)
+            {
+                const LRESULT selected = SendMessageW(capture_resolution_combo, CB_GETCURSEL, 0, 0);
+                if (selected != CB_ERR)
+                {
+                    const LRESULT resolution = SendMessageW(capture_resolution_combo,
+                        CB_GETITEMDATA, static_cast<WPARAM>(selected), 0);
+                    if (!active_renderer->set_capture_resolution(static_cast<std::uint32_t>(resolution)))
+                    {
+                        MessageBoxW(parameter_window,
+                            L"\u63a5\u89e6\u5224\u5b9a\u7528\u30c6\u30af\u30b9\u30c1\u30e3\u306e\u518d\u4f5c\u6210\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002\u5143\u306e\u89e3\u50cf\u5ea6\u3092\u4f7f\u7528\u3057\u307e\u3059\u3002",
+                            L"\u89e3\u50cf\u5ea6\u5909\u66f4", MB_ICONWARNING | MB_OK);
+                        update_capture_resolution_control();
+                    }
+                }
+            }
             return 0;
         }
         if (message == WM_COMMAND && LOWORD(wparam) == parameter_pause_id)
