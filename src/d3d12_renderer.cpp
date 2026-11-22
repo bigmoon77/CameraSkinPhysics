@@ -760,7 +760,7 @@ namespace csp
             }
 
             const UINT64 edge_correction_bytes =
-                static_cast<UINT64>(compute_->edge_count) * 2 * sizeof(DirectX::XMFLOAT4);
+                static_cast<UINT64>(compute_->edge_count) * 2 * sizeof(DirectX::XMFLOAT3);
             const UINT64 edge_lambda_bytes = static_cast<UINT64>(compute_->edge_count) * sizeof(float);
             camera_body.edge_corrections = create_buffer(device_.Get(), edge_correction_bytes,
                 D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
@@ -1149,7 +1149,7 @@ namespace csp
                 write_buffer_srv(solve_table, 2, body.edge_lambdas[lambda_read].Get(),
                     compute_->edge_count, sizeof(float));
                 write_buffer_uav(solve_table, 0, body.edge_corrections.Get(),
-                    compute_->edge_count * 2, sizeof(DirectX::XMFLOAT4));
+                    compute_->edge_count * 2, sizeof(DirectX::XMFLOAT3));
                 write_buffer_uav(solve_table, 1, body.edge_lambdas[lambda_write].Get(),
                     compute_->edge_count, sizeof(float));
 
@@ -1182,7 +1182,7 @@ namespace csp
                 write_buffer_srv(gather_table, 2, compute_->incident_surface_corrections.Get(),
                     compute_->edge_count * 2, sizeof(std::uint32_t));
                 write_buffer_srv(gather_table, 3, body.edge_corrections.Get(),
-                    compute_->edge_count * 2, sizeof(DirectX::XMFLOAT4));
+                    compute_->edge_count * 2, sizeof(DirectX::XMFLOAT3));
                 write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
 
