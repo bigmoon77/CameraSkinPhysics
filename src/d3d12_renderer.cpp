@@ -642,7 +642,7 @@ namespace csp
         if (compute_->particle_count == 0 || compute_->tetrahedron_count == 0
             || compute_->vertex_count == 0 || compute_->edge_count == 0
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
-            || surface_mesh.incident_edges.size() != surface_mesh.edges.size() * 2)
+            || surface_mesh.incident_corrections.size() != surface_mesh.edges.size() * 2)
             return false;
 
         const auto upload_vector = [this](const auto& values) -> Microsoft::WRL::ComPtr<ID3D12Resource>
