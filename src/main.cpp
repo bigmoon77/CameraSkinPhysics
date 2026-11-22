@@ -1,6 +1,7 @@
 #include "d3d12_renderer.hpp"
 #include "sphere_mesh.hpp"
 #include "tetrahedral_mesh.hpp"
+#include "obj_mesh.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -13,6 +14,9 @@
 #include <cwchar>
 #include <exception>
 #include <string>
+#include <filesystem>
+#include <fstream>
+#include <commdlg.h>
 
 namespace
 {
@@ -21,6 +25,8 @@ namespace
     constexpr int parameter_control_base = 100;
     constexpr int parameter_reset_id = 200;
     constexpr int parameter_pause_id = 201;
+    constexpr int parameter_model_id = 202;
+    constexpr int parameter_restart_id = 203;
     constexpr int parameter_count = 12;
     HWND parameter_sliders[parameter_count]{};
     HWND parameter_value_labels[parameter_count]{};
@@ -29,6 +35,8 @@ namespace
     HWND pause_button = nullptr;
     csp::d3d12_renderer* active_renderer = nullptr;
     bool benchmark_running = false;
+    std::filesystem::path active_obj_path;
+    bool custom_model_loaded = false;
 
     struct parameter_description
     {
@@ -150,6 +158,151 @@ namespace
         update_parameter_controls();
     }
 
+    
+    csp::tetrahedral_mesh make_surface_only_volume(const csp::sphere_mesh& mesh)
+    {
+        csp::tetrahedral_mesh volume{};
+        const float positions[4][3] = {
+            {-0.01f, -0.01f, -0.01f}, {0.01f, -0.01f, -0.01f},
+            {0.0f, 0.01f, -0.01f}, {0.0f, 0.0f, 0.01f}
+        };
+        for (const auto& position : positions)
+        {
+            csp::simulation_particle particle{};
+            particle.position[0] = position[0];
+            particle.position[1] = position[1];
+            particle.position[2] = position[2];
+            particle.position[3] = 1.0f;
+            volume.particles.push_back(particle);
+            volume.inverse_masses.push_back(1.0f);
+        }
+        csp::tetrahedron tetra{};
+        tetra.indices[0] = 0; tetra.indices[1] = 1;
+        tetra.indices[2] = 2; tetra.indices[3] = 3;
+        tetra.rest_volume = 1.0e-6f;
+        volume.tetrahedra.push_back(tetra);
+        volume.incidence_ranges.resize(4);
+        for (std::uint32_t index = 0; index < 4; ++index)
+        {
+            volume.incidence_ranges[index] = {index, 1};
+            volume.incident_tetrahedra.push_back(0);
+        }
+        volume.tetrahedron_indices.push_back({0, 1, 2, 3});
+        volume.surface_mappings.resize(mesh.vertices.size());
+        for (csp::surface_mapping& mapping : volume.surface_mappings)
+        {
+            mapping.indices[0] = 0;
+            mapping.weights[0] = 1.0f;
+        }
+        return volume;
+    }
+
+    bool export_blend_to_obj(const std::filesystem::path& blend_path, std::filesystem::path& obj_path)
+    {
+        wchar_t blender_path[MAX_PATH]{};
+        if (SearchPathW(nullptr, L"blender.exe", nullptr, MAX_PATH, blender_path, nullptr) == 0)
+        {
+            MessageBoxW(parameter_window, L"blender.exe が PATH に見つかりません。Blender の bin フォルダーを PATH に追加してください。",
+                L"モデル読み込み", MB_ICONERROR | MB_OK);
+            return false;
+        }
+
+        wchar_t temporary_directory[MAX_PATH]{};
+        if (GetTempPathW(MAX_PATH, temporary_directory) == 0) return false;
+        const std::filesystem::path script_path = std::filesystem::path(temporary_directory) / L"csp_blend_export.py";
+        obj_path = std::filesystem::path(temporary_directory) / L"csp_blend_import.obj";
+        std::ofstream script(script_path, std::ios::binary);
+        if (!script) return false;
+        script << R"PY(import bpy
+import sys
+from mathutils import Vector
+args = sys.argv[sys.argv.index("--") + 1:]
+output_path = args[0]
+depsgraph = bpy.context.evaluated_depsgraph_get()
+vertex_offset = 0
+with open(output_path, "w", encoding="utf-8") as output:
+    for obj in bpy.context.scene.objects:
+        if obj.type != "MESH":
+            continue
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
+        mesh.calc_loop_triangles()
+        matrix = evaluated.matrix_world
+        for vertex in mesh.vertices:
+            p = matrix @ vertex.co
+            output.write("v %.9g %.9g %.9g\n" % (p.x, p.z, -p.y))
+        for triangle in mesh.loop_triangles:
+            a, b, c = [vertex_offset + index + 1 for index in triangle.vertices]
+            output.write("f %d %d %d\n" % (a, b, c))
+        vertex_offset += len(mesh.vertices)
+        evaluated.to_mesh_clear()
+)PY";
+        script.close();
+
+        std::wstring command = L"\"" + std::wstring(blender_path) + L"\" --background \""
+            + blend_path.wstring() + L"\" --python \"" + script_path.wstring()
+            + L"\" -- \"" + obj_path.wstring() + L"\"";
+        STARTUPINFOW startup{};
+        startup.cb = sizeof(startup);
+        PROCESS_INFORMATION process{};
+        if (!CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE,
+            CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process))
+            return false;
+        WaitForSingleObject(process.hProcess, INFINITE);
+        DWORD exit_code = 1;
+        GetExitCodeProcess(process.hProcess, &exit_code);
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        return exit_code == 0 && std::filesystem::exists(obj_path);
+    }
+
+    bool choose_blend_model()
+    {
+        wchar_t file_path[MAX_PATH]{};
+        OPENFILENAMEW dialog{};
+        dialog.lStructSize = sizeof(dialog);
+        dialog.hwndOwner = parameter_window;
+        dialog.lpstrFilter = L"Blender Project (*.blend)\0*.blend\0All Files (*.*)\0*.*\0";
+        dialog.lpstrFile = file_path;
+        dialog.nMaxFile = MAX_PATH;
+        dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+        if (!GetOpenFileNameW(&dialog)) return false;
+        std::filesystem::path obj_path;
+        if (!export_blend_to_obj(file_path, obj_path)) return false;
+        try
+        {
+            csp::sphere_mesh mesh = csp::load_obj_mesh(obj_path);
+            if (mesh.vertices.empty() || mesh.indices.empty()) return false;
+        }
+        catch (const std::exception& exception)
+        {
+            MessageBoxA(parameter_window, exception.what(), "Model import failed", MB_ICONERROR | MB_OK);
+            return false;
+        }
+        active_obj_path = obj_path;
+        custom_model_loaded = true;
+        return true;
+    }
+
+    void relaunch_application()
+    {
+        wchar_t executable[MAX_PATH]{};
+        GetModuleFileNameW(nullptr, executable, MAX_PATH);
+        std::wstring command = L"\"" + std::wstring(executable) + L"\"";
+        if (!active_obj_path.empty())
+            command += L" --obj \"" + active_obj_path.wstring() + L"\"";
+        STARTUPINFOW startup{};
+        startup.cb = sizeof(startup);
+        PROCESS_INFORMATION process{};
+        if (CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, 0,
+            nullptr, nullptr, &startup, &process))
+        {
+            CloseHandle(process.hThread);
+            CloseHandle(process.hProcess);
+            PostQuitMessage(0);
+        }
+    }
+
     LRESULT CALLBACK parameter_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
     {
         if (message == WM_CREATE)
@@ -184,6 +337,14 @@ namespace
             performance_label = CreateWindowExW(0, L"STATIC", L"CPU -- ms    GPU -- ms",
                 WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 62 + 40,
                 520, 68, window, nullptr, GetModuleHandleW(nullptr), nullptr);
+            CreateWindowExW(0, L"BUTTON", L"Blender モデルを読み込む",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 16, 18 + parameter_count * 62 + 118,
+                240, 32, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_model_id)),
+                GetModuleHandleW(nullptr), nullptr);
+            CreateWindowExW(0, L"BUTTON", L"シミュレーションをやり直す",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 280, 18 + parameter_count * 62 + 118,
+                240, 32, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_restart_id)),
+                GetModuleHandleW(nullptr), nullptr);
             update_parameter_controls();
             update_performance_controls();
             return 0;
@@ -198,6 +359,16 @@ namespace
             if (active_renderer != nullptr)
                 active_renderer->set_simulation_parameters(csp::simulation_parameters{});
             update_parameter_controls();
+            return 0;
+        }
+        if (message == WM_COMMAND && LOWORD(wparam) == parameter_model_id)
+        {
+            if (choose_blend_model()) relaunch_application();
+            return 0;
+        }
+        if (message == WM_COMMAND && LOWORD(wparam) == parameter_restart_id)
+        {
+            relaunch_application();
             return 0;
         }
         if (message == WM_COMMAND && LOWORD(wparam) == parameter_pause_id)
@@ -262,7 +433,7 @@ namespace
 
         if (message == WM_KEYDOWN && active_renderer != nullptr)
         {
-            if (wparam == VK_F1)
+            if (wparam == VK_F1 && !custom_model_loaded)
             {
                 active_renderer->set_solver_mode(csp::solver_mode::tetrahedral_xpbd);
                 update_window_title(window);
@@ -326,7 +497,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
 
     try
     {
-        const csp::sphere_mesh surface_mesh = csp::make_sphere_mesh();
+        int argument_count = 0;
+        LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argument_count);
+        std::filesystem::path startup_obj_path;
+        for (int argument = 1; argument + 1 < argument_count; ++argument)
+            if (std::wstring(arguments[argument]) == L"--obj") startup_obj_path = arguments[argument + 1];
+        if (arguments != nullptr) LocalFree(arguments);
+        custom_model_loaded = !startup_obj_path.empty();
+        active_obj_path = startup_obj_path;
+        const csp::sphere_mesh surface_mesh = custom_model_loaded
+            ? csp::load_obj_mesh(startup_obj_path) : csp::make_sphere_mesh();
         if (surface_mesh.vertices.size() != 100000 || surface_mesh.indices.size() != 599988
             || surface_mesh.edges.size() != 299994
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
@@ -337,7 +517,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
             return -1;
         }
 
-        const csp::tetrahedral_mesh volume_mesh = csp::make_tetrahedral_mesh(surface_mesh);
+        const csp::tetrahedral_mesh volume_mesh = custom_model_loaded
+            ? make_surface_only_volume(surface_mesh) : csp::make_tetrahedral_mesh(surface_mesh);
         RECT client_rect{};
         GetClientRect(window, &client_rect);
         csp::d3d12_renderer renderer;
@@ -357,7 +538,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
             parameter_window_class_name, L"CameraSkinPhysics | \u30d1\u30e9\u30e1\u30fc\u30bf",
             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-            CW_USEDEFAULT, CW_USEDEFAULT, 560, 18 + parameter_count * 62 + 115,
+            CW_USEDEFAULT, CW_USEDEFAULT, 560, 18 + parameter_count * 62 + 155,
             window, nullptr, instance, nullptr);
         if (parameter_window == nullptr)
             throw std::runtime_error("Failed to create parameter window.");
