@@ -20,7 +20,7 @@ namespace csp
     class d3d12_renderer
     {
     public:
-        d3d12_renderer() = default;
+        d3d12_renderer();
         ~d3d12_renderer();
         d3d12_renderer(const d3d12_renderer&) = delete;
         d3d12_renderer& operator=(const d3d12_renderer&) = delete;
