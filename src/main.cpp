@@ -135,14 +135,14 @@ namespace
             {
                 const int top = 18 + index * 76;
                 CreateWindowExW(0, L"STATIC", parameter_descriptions[index].label,
-                    WS_CHILD | WS_VISIBLE, 16, top, 210, 22, window, nullptr,
+                    WS_CHILD | WS_VISIBLE, 16, top, 245, 22, window, nullptr,
                     GetModuleHandleW(nullptr), nullptr);
                 parameter_value_labels[index] = CreateWindowExW(0, L"STATIC", L"",
-                    WS_CHILD | WS_VISIBLE | SS_RIGHT, 250, top, 150, 22, window, nullptr,
+                    WS_CHILD | WS_VISIBLE | SS_RIGHT, 275, top, 245, 22, window, nullptr,
                     GetModuleHandleW(nullptr), nullptr);
                 parameter_sliders[index] = CreateWindowExW(0, TRACKBAR_CLASSW, L"",
                     WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS,
-                    16, top + 24, 384, 38, window,
+                    16, top + 24, 504, 38, window,
                     reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_control_base + index)),
                     GetModuleHandleW(nullptr), nullptr);
                 SendMessageW(parameter_sliders[index], TBM_SETRANGE, TRUE, MAKELONG(0, 1000));
@@ -150,17 +150,17 @@ namespace
             }
             CreateWindowExW(0, L"BUTTON", L"パラメータを初期化",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                16, 18 + parameter_count * 76, 186, 32, window,
+                16, 18 + parameter_count * 76, 240, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_reset_id)),
                 GetModuleHandleW(nullptr), nullptr);
             pause_button = CreateWindowExW(0, L"BUTTON", L"シミュレーションを一時停止",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                214, 18 + parameter_count * 76, 186, 32, window,
+                280, 18 + parameter_count * 76, 240, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_pause_id)),
                 GetModuleHandleW(nullptr), nullptr);
             performance_label = CreateWindowExW(0, L"STATIC", L"CPU -- ms    GPU -- ms",
                 WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 76 + 40,
-                400, 58, window, nullptr, GetModuleHandleW(nullptr), nullptr);
+                520, 58, window, nullptr, GetModuleHandleW(nullptr), nullptr);
             update_parameter_controls();
             update_performance_controls();
             return 0;
@@ -334,7 +334,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
             parameter_window_class_name, L"CameraSkinPhysics | パラメータ",
             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-            CW_USEDEFAULT, CW_USEDEFAULT, 440, 18 + parameter_count * 76 + 105,
+            CW_USEDEFAULT, CW_USEDEFAULT, 560, 18 + parameter_count * 76 + 105,
             window, nullptr, instance, nullptr);
         if (parameter_window == nullptr)
             throw std::runtime_error("Failed to create parameter window.");
@@ -410,7 +410,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         std::wstring wide_message(static_cast<std::size_t>(std::max(required, 1)), L'\0');
         if (required > 0)
             MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, wide_message.data(), required);
-        MessageBoxW(window, wide_message.c_str(), L"CameraSkinPhysics error", MB_ICONERROR | MB_OK);
+        MessageBoxW(window, wide_message.c_str(), L"CameraSkinPhysics エラー", MB_ICONERROR | MB_OK);
         return -1;
     }
 }
