@@ -2014,11 +2014,11 @@ namespace csp
                         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
                     const std::uint32_t apply_table = reserve_descriptor_table();
                     clear_descriptor_table(apply_table);
-                    write_buffer_srv(apply_table, 0, body.particles[*particle_read].Get(),
+                    write_buffer_srv(apply_table, 4, body.particles[*particle_read].Get(),
                         compute_->vertex_count, sizeof(simulation_particle));
-                    write_buffer_srv(apply_table, 1, correction_input,
+                    write_buffer_srv(apply_table, 5, correction_input,
                         compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
-                    write_buffer_uav(apply_table, 0, apply_output,
+                    write_buffer_uav(apply_table, 1, apply_output,
                         compute_->vertex_count, sizeof(simulation_particle));
                     const std::uint32_t apply_values[4] = {
                         compute_->vertex_count, 0u, 0u, 0u
