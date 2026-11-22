@@ -665,7 +665,7 @@ namespace csp
         compute_->surface_mappings = upload_vector(volume_mesh.surface_mappings);
         compute_->surface_edges = upload_vector(surface_mesh.edges);
         compute_->surface_edge_ranges = upload_vector(surface_mesh.edge_incidence_ranges);
-        compute_->incident_surface_corrections = upload_vector(surface_mesh.incident_edges);
+        compute_->incident_surface_corrections = upload_vector(surface_mesh.incident_corrections);
 
         if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra
             || !compute_->incidence_ranges || !compute_->incident_tetrahedra
