@@ -436,10 +436,10 @@ namespace csp
             || !create_compute_resources(surface_mesh, volume_mesh, animation)) return false;
 
         D3D12_QUERY_HEAP_DESC query_description{};
-        query_description.Count = 5u + max_solver_iterations * 2u * 8u;
+        query_description.Count = 13u + max_solver_iterations * 2u * 8u;
         query_description.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
         if (FAILED(device_->CreateQueryHeap(&query_description, IID_PPV_ARGS(&timestamp_query_heap_)))) return false;
-        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * (5u + max_solver_iterations * 2u * 8u),
+        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * (13u + max_solver_iterations * 2u * 8u),
             D3D12_HEAP_TYPE_READBACK, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
         if (!timestamp_readback_) return false;
         if (FAILED(command_queue_->GetTimestampFrequency(&timestamp_frequency_))) timestamp_frequency_ = 0;
@@ -479,8 +479,8 @@ namespace csp
         const D3D12_HEAP_PROPERTIES heap_properties = make_heap_properties(D3D12_HEAP_TYPE_DEFAULT);
         D3D12_RESOURCE_DESC normal_description{};
         normal_description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        normal_description.Width = capture_size;
-        normal_description.Height = capture_size;
+        normal_description.Width = capture_size_;
+        normal_description.Height = capture_size_;
         normal_description.DepthOrArraySize = 1;
         normal_description.MipLevels = 1;
         normal_description.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -1485,7 +1485,7 @@ namespace csp
                     compute_->edge_count, clamped_delta_time, simulation_parameters_.edge_relaxation,
                     simulation_parameters_.edge_compliance
                 };
-                const std::uint32_t query_base = 5u + camera_dispatch_index * 8u;
+                const std::uint32_t query_base = 13u + camera_dispatch_index * 8u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query_base);
                 dispatch_compute(compute_->camera_surface_edge_pipeline.Get(), solve_table,
                     &edge_constants, 4, edge_groups);
@@ -1745,10 +1745,10 @@ namespace csp
         command_list_->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
         D3D12_VIEWPORT viewport{};
-        viewport.Width = static_cast<float>(capture_size);
-        viewport.Height = static_cast<float>(capture_size);
+        viewport.Width = static_cast<float>(capture_size_);
+        viewport.Height = static_cast<float>(capture_size_);
         viewport.MaxDepth = 1.0f;
-        const D3D12_RECT scissor{0, 0, static_cast<LONG>(capture_size), static_cast<LONG>(capture_size)};
+        const D3D12_RECT scissor{0, 0, static_cast<LONG>(capture_size_), static_cast<LONG>(capture_size_)};
         command_list_->RSSetViewports(1, &viewport);
         command_list_->RSSetScissorRects(1, &scissor);
         command_list_->SetGraphicsRootSignature(capture_root_signature_.Get());
@@ -1783,7 +1783,7 @@ namespace csp
             solver_mode_ == solver_mode::camera_surface ? 1u : 0u;
         if (!compute_->logs[mode_index]) return;
 
-        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * (5u + max_solver_iterations * 2u * 8u)};
+        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * (13u + max_solver_iterations * 2u * 8u)};
         std::uint64_t* timestamps = nullptr;
         if (FAILED(timestamp_readback_->Map(0, &read_range, reinterpret_cast<void**>(&timestamps)))) return;
 
@@ -1791,6 +1791,16 @@ namespace csp
         const std::uint64_t capture_ticks = timestamps[2] - timestamps[1];
         const std::uint64_t collision_ticks = timestamps[3] - timestamps[2];
         const std::uint64_t render_ticks = timestamps[4] - timestamps[3];
+        std::uint64_t collision_compute_ticks = 0;
+        std::uint64_t contact_apply_ticks = 0;
+        if (!simulation_paused_)
+        {
+            collision_compute_ticks = (timestamps[6] - timestamps[5])
+                + (timestamps[8] - timestamps[7]);
+            if (mode_index == 1u)
+                contact_apply_ticks = (timestamps[10] - timestamps[9])
+                    + (timestamps[12] - timestamps[11]);
+        }
         std::uint64_t camera_edge_ticks = 0;
         std::uint64_t camera_area_ticks = 0;
         std::uint64_t camera_bending_ticks = 0;
@@ -1799,7 +1809,7 @@ namespace csp
         {
             for (std::uint32_t dispatch_index = 0; dispatch_index < simulation_parameters_.solver_iterations * 2u; ++dispatch_index)
             {
-                const std::uint32_t query_base = 5u + dispatch_index * 8u;
+                const std::uint32_t query_base = 13u + dispatch_index * 8u;
                 camera_edge_ticks += timestamps[query_base + 1u] - timestamps[query_base];
                 camera_area_ticks += timestamps[query_base + 3u] - timestamps[query_base + 2u];
                 camera_bending_ticks += timestamps[query_base + 5u] - timestamps[query_base + 4u];
@@ -1817,6 +1827,8 @@ namespace csp
         performance_metrics_.camera_gather_ms = static_cast<double>(camera_gather_ticks) * ticks_to_ms;
         performance_metrics_.gpu_depth_capture_ms = static_cast<double>(capture_ticks) * ticks_to_ms;
         performance_metrics_.gpu_collision_ms = static_cast<double>(collision_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_collision_compute_ms = static_cast<double>(collision_compute_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_contact_apply_ms = static_cast<double>(contact_apply_ticks) * ticks_to_ms;
         performance_metrics_.gpu_render_ms = static_cast<double>(render_ticks) * ticks_to_ms;
         performance_metrics_.gpu_total_ms = performance_metrics_.gpu_simulation_ms
             + performance_metrics_.gpu_depth_capture_ms + performance_metrics_.gpu_collision_ms
@@ -1836,6 +1848,8 @@ namespace csp
             static_cast<double>(camera_gather_ticks) * ticks_to_ms,
             static_cast<double>(capture_ticks) * ticks_to_ms,
             static_cast<double>(collision_ticks) * ticks_to_ms,
+            static_cast<double>(collision_compute_ticks) * ticks_to_ms,
+            static_cast<double>(contact_apply_ticks) * ticks_to_ms,
             static_cast<double>(render_ticks) * ticks_to_ms,
             particle_count, tetrahedron_count,
             mode_index == 1u ? compute_->camera_surface_buffer_bytes : compute_->tetrahedral_buffer_bytes,
@@ -1844,7 +1858,7 @@ namespace csp
             simulation_parameters_.max_correction, simulation_parameters_.particle_radius,
             simulation_parameters_.pushout, simulation_parameters_.velocity_friction,
             simulation_parameters_.restitution, simulation_parameters_.contact_band,
-            simulation_parameters_.shape_matching_strength);
+            simulation_parameters_.shape_matching_strength, capture_size_);
 
         const D3D12_RANGE written_range{0, 0};
         timestamp_readback_->Unmap(0, &written_range);
@@ -1901,8 +1915,8 @@ namespace csp
                 XMStoreFloat4x4(&collision_constants.inverse_view_projection, inverse_view_projection);
                 collision_constants.particle_count =
                     use_camera_surface ? compute_->vertex_count : compute_->particle_count;
-                collision_constants.viewport_width = capture_size;
-                collision_constants.viewport_height = capture_size;
+                collision_constants.viewport_width = capture_size_;
+                collision_constants.viewport_height = capture_size_;
                 collision_constants.particle_radius = use_camera_surface ? simulation_parameters_.particle_radius : 0.035f;
                 collision_constants.pushout = use_camera_surface ? simulation_parameters_.pushout : 0.012f;
                 collision_constants.velocity_friction = use_camera_surface ? simulation_parameters_.velocity_friction : 0.12f;
@@ -1953,9 +1967,14 @@ namespace csp
                     write_buffer_uav(table, 1, body.contact_corrections[contact_write_index].Get(),
                         compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
                 }
+                const std::uint32_t collision_query_base = 5u + body_index * 2u;
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                    collision_query_base);
                 dispatch_compute(compute_->camera_collision_pipeline.Get(), table,
                     &collision_constants, 41,
                     (collision_constants.particle_count + 255u) / 256u);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                    collision_query_base + 1u);
                 transition_resource(output_particles,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                 *particle_read = 1u - *particle_read;
@@ -1991,9 +2010,14 @@ namespace csp
                     const std::uint32_t apply_values[4] = {
                         compute_->vertex_count, std::bit_cast<std::uint32_t>(contact_smoothing_strength), 0u, 0u
                     };
+                    const std::uint32_t apply_query_base = 9u + body_index * 2u;
+                    command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                        apply_query_base);
                     dispatch_compute(compute_->camera_contact_apply_pipeline.Get(),
                         apply_table, apply_values, 4,
                         (compute_->vertex_count + 255u) / 256u);
+                    command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                        apply_query_base + 1u);
                     transition_resource(apply_output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                     *particle_read = apply_output_index;
@@ -2082,7 +2106,7 @@ namespace csp
 
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 4);
         command_list_->ResolveQueryData(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
-            0, 5u + max_solver_iterations * 2u * 8u, timestamp_readback_.Get(), 0);
+            0, 13u + max_solver_iterations * 2u * 8u, timestamp_readback_.Get(), 0);
 
         back_buffer_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         back_buffer_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
