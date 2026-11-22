@@ -41,16 +41,13 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float3 delta = opposite_a.position.xyz - opposite_b.position.xyz;
     const float current_distance = length(delta);
     const float old_lambda = g_lambda_in[hinge_index];
-    const uint correction_base = edge_count + area_count * 3u + hinge_index * 4u;
-
-    g_corrections[correction_base + 0u] = 0.0f;
-    g_corrections[correction_base + 1u] = 0.0f;
+    const uint correction_base = edge_count + area_count * 3u + hinge_index * 2u;
 
     if (current_distance < 1.0e-8f || hinge.rest_distance < 1.0e-8f)
     {
         g_lambda_out[hinge_index] = old_lambda;
-        g_corrections[correction_base + 2u] = 0.0f;
-        g_corrections[correction_base + 3u] = 0.0f;
+        g_corrections[correction_base + 0u] = 0.0f;
+        g_corrections[correction_base + 1u] = 0.0f;
         return;
     }
 
@@ -61,6 +58,6 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float3 gradient = delta / current_distance;
 
     g_lambda_out[hinge_index] = old_lambda + scaled_lambda;
-    g_corrections[correction_base + 2u] = gradient * scaled_lambda;
-    g_corrections[correction_base + 3u] = -gradient * scaled_lambda;
+    g_corrections[correction_base + 0u] = gradient * scaled_lambda;
+    g_corrections[correction_base + 1u] = -gradient * scaled_lambda;
 }
