@@ -665,16 +665,27 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         int argument_count = 0;
         LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argument_count);
         std::filesystem::path startup_obj_path;
+        std::filesystem::path startup_skin_path;
         if (arguments != nullptr)
         {
             for (int argument = 1; argument + 1 < argument_count; ++argument)
-                if (std::wstring(arguments[argument]) == L"--obj") startup_obj_path = arguments[argument + 1];
+            {
+                if (std::wstring(arguments[argument]) == L"--obj")
+                    startup_obj_path = arguments[argument + 1];
+                else if (std::wstring(arguments[argument]) == L"--skin")
+                    startup_skin_path = arguments[argument + 1];
+            }
             LocalFree(arguments);
         }
         custom_model_loaded = !startup_obj_path.empty();
         active_obj_path = startup_obj_path;
+        active_skin_path = startup_skin_path;
         const csp::sphere_mesh surface_mesh = custom_model_loaded
             ? csp::load_obj_mesh(startup_obj_path) : csp::make_sphere_mesh();
+        csp::skeletal_animation animation{};
+        if (!startup_skin_path.empty())
+            animation = csp::load_skeletal_animation(startup_skin_path,
+                static_cast<std::uint32_t>(surface_mesh.vertices.size()));
         if (!custom_model_loaded && (surface_mesh.vertices.size() != 100000 || surface_mesh.indices.size() != 599988
             || surface_mesh.edges.size() != 299994
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
@@ -693,7 +704,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         if (!renderer.initialize(window,
             static_cast<std::uint32_t>(client_rect.right - client_rect.left),
             static_cast<std::uint32_t>(client_rect.bottom - client_rect.top),
-            surface_mesh, volume_mesh))
+            surface_mesh, volume_mesh, startup_skin_path.empty() ? nullptr : &animation))
         {
             MessageBoxW(window,
                 L"Direct3D 12\u306e\u521d\u671f\u5316\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002GPU\u30c9\u30e9\u30a4\u30d0\u30fc\u3068DXC\u306b\u3088\u308b\u30b7\u30a7\u30fc\u30c0\u30fc\u751f\u6210\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
