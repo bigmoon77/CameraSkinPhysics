@@ -5,7 +5,7 @@ A Direct3D 12 soft-body prototype for comparing two GPU deformation models under
 The executable starts with two 100,000-vertex spheres. Press **F1** or **F2** to select which independent simulation is displayed.
 
 - **F1 — Tetrahedral XPBD:** an interior particle lattice is solved with one tetrahedron volume constraint and six local edge-length constraints per tetrahedron. A CSR gather pass accumulates constraint corrections without floating-point atomics. A barycentric mapping skins the render surface.
-- **F2 — Camera surface:** the 100,000 render vertices are the simulation particles. Unique triangle edges form a surface spring network, solved with XPBD edge-length constraints and a vertex-to-edge CSR gather. This mode has no tetrahedral interior mesh.
+- **F2 — Camera surface:** the 100,000 render vertices are the simulation particles. Unique triangle edges provide XPBD edge-length constraints, and each triangle adds an XPBD rest-area constraint. A combined vertex CSR gather accumulates edge and area corrections without floating-point atomics. This mode has no tetrahedral interior mesh.
 - **Shared contact:** both modes render the opposing sphere into a depth/normal target and project their particles into that target for contact correction. Both use the same camera, initial sphere centers, initial velocities, capture resolution and iteration count.
 
 Each mode owns independent particle state. Switching to a mode for the first time starts it from the same initial condition; switching back resumes that mode's previous state. Run one mode at a time for a clean benchmark.
@@ -30,7 +30,7 @@ The application opens a separate **Live Parameters** window. Use **F3** to show 
 - Camera-surface velocity friction and restitution: 0.0–1.0.
 - Camera-surface contact band: 0.005–0.5.
 
-The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, edge-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
+The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, combined edge/area-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
 
 ## Current implementation
 
@@ -39,8 +39,8 @@ The collision controls currently affect Camera Surface mode. XPBD retains its ex
 - Surface topology: 299,994 unique edges and 599,988 vertex-edge CSR incidence entries per sphere at the default resolution.
 - Tetrahedral topology: 10,144 interior particles, 51,246 tetrahedra and 204,984 particle-element CSR incidence entries per sphere at the default resolution.
 - Tetrahedral XPBD: particle integration, volume and edge constraints, ping-pong multipliers, CSR correction gather and barycentric GPU skinning.
-- Camera-surface XPBD: 100,000 surface particles per sphere, edge-length constraints, ping-pong multipliers, CSR correction gather and direct GPU skinning.
-- Generic surface topology preprocessing: triangle rest-area constraints, shared-edge dihedral rest-angle constraints, boundary/non-manifold/orientation diagnostics and signed rest volume are generated from arbitrary indexed triangle meshes. Edge records are sorted contiguously to avoid per-edge heap allocations at high mesh counts. Triangle-area constraints now also have a vertex-to-triangle CSR adjacency (`triangle_incidence_ranges` / `incident_triangle_corners`) so a GPU correction gather can be implemented without floating-point atomics. Area/bending records are still preprocessing data; their GPU XPBD solve passes are the next implementation stage.
+- Camera-surface XPBD: 100,000 surface particles per sphere, edge-length and triangle-area constraints, ping-pong multipliers for both constraint families, combined edge/area correction storage, vertex-edge and vertex-triangle CSR gather, and direct GPU skinning.
+- Generic surface topology preprocessing: triangle rest-area constraints, shared-edge dihedral rest-angle constraints, boundary/non-manifold/orientation diagnostics and signed rest volume are generated from arbitrary indexed triangle meshes. Edge records are sorted contiguously to avoid per-edge heap allocations at high mesh counts. Triangle-area constraints have vertex-to-triangle CSR adjacency (`triangle_incidence_ranges` / `incident_triangle_corners`). The area XPBD pass computes one correction per triangle corner; the combined vertex gather accumulates edge and area corrections without floating-point atomics. Bending and closed-volume GPU solves remain future stages.
 - Two 1024 × 1024 opposing-body normal/depth capture targets and the shared camera-space particle contact pass.
 - GPU timestamp queries. CSV files are written separately:
   - `output/benchmark_xpbd.csv`
@@ -52,7 +52,7 @@ The memory columns report the allocated simulation-buffer sizes for the selected
 
 ## Known limitations
 
-- The camera method currently solves surface-edge XPBD only. Area and dihedral rest constraints are generated and validated on the CPU, but their GPU solve passes are not integrated yet; signed rest volume is currently topology metadata only. Until those passes are added, surface triangles can fold or invert under severe deformation. Closed-volume solving must be gated by the generated manifold/orientation validation; open meshes remain supported for edge/area/bending constraints.
+- The camera method currently solves surface-edge and unsigned triangle-area XPBD constraints. Area constraints resist local triangle collapse, but do not preserve triangle orientation or prevent folding by themselves. Dihedral bending and closed-volume GPU solves are still pending; signed rest volume is currently topology metadata only. Closed-volume solving must be gated by the generated manifold/orientation validation; open meshes remain supported for edge/area/bending constraints.
 - The camera contact uses one frontmost depth layer from a single view. It cannot classify deep interior overlap or the far side of the opposing body. The shader limits correction to a narrow contact band to avoid projecting deep particles onto the visible shell. Multi-view capture, depth peeling or thickness reconstruction is required for robust deep overlap.
 - The tetrahedral domain is a regular lattice clipped to the sphere. Its boundary is coarse and a small number of render samples use a nearest-element fallback. Rest offsets preserve the initial rest pose.
 - Render normals are currently radial approximations. Recompute from deformed triangle adjacency for improved lighting.
