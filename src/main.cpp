@@ -166,7 +166,7 @@ namespace
             ? L"Camera surface particles"
             : L"Tetrahedral XPBD";
         const std::wstring title = std::wstring(L"CameraSkinPhysics | ") + mode_name
-            + L" | F1: XPBD  F2: Camera surface | benchmark in output/";
+            + L" | F1: XPBD  F2: Camera surface  F3: Parameters | benchmark in output/";
         SetWindowTextW(window, title.c_str());
     }
 
@@ -215,6 +215,12 @@ namespace
                 update_window_title(window);
                 return 0;
             }
+            if (wparam == VK_F3 && parameter_window != nullptr)
+            {
+                ShowWindow(parameter_window,
+                    IsWindowVisible(parameter_window) ? SW_HIDE : SW_SHOW);
+                return 0;
+            }
         }
         if (message == WM_DESTROY)
         {
@@ -227,6 +233,19 @@ namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_command)
 {
+    INITCOMMONCONTROLSEX common_controls{};
+    common_controls.dwSize = sizeof(common_controls);
+    common_controls.dwICC = ICC_BAR_CLASSES;
+    InitCommonControlsEx(&common_controls);
+
+    WNDCLASSEXW parameter_class{};
+    parameter_class.cbSize = sizeof(parameter_class);
+    parameter_class.lpfnWndProc = parameter_window_proc;
+    parameter_class.hInstance = instance;
+    parameter_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    parameter_class.lpszClassName = parameter_window_class_name;
+    if (RegisterClassExW(&parameter_class) == 0) return -1;
+
     WNDCLASSEXW window_class{};
     window_class.cbSize = sizeof(window_class);
     window_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -276,6 +295,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
 
         active_renderer = &renderer;
         update_window_title(window);
+        parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
+            parameter_window_class_name, L"CameraSkinPhysics | Live Parameters",
+            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+            CW_USEDEFAULT, CW_USEDEFAULT, 440, 18 + parameter_count * 76 + 105,
+            window, nullptr, instance, nullptr);
+        if (parameter_window == nullptr)
+            throw std::runtime_error("Failed to create parameter window.");
+        ShowWindow(parameter_window, SW_SHOW);
         ShowWindow(window, show_command);
 
         const std::uint32_t benchmark_frame_count = parse_benchmark_frame_count(command_line);
