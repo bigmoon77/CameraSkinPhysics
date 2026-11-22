@@ -75,8 +75,8 @@ namespace csp
         if (mesh.indices.size() % 3u != 0u)
             throw std::invalid_argument("Surface index count must be divisible by three.");
         if (mesh.vertices.size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())
-            || mesh.indices.size() / 3u > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
-            throw std::invalid_argument("Surface topology exceeds 32-bit index limits.");
+            || mesh.indices.size() / 3u > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max() / 3u))
+            throw std::invalid_argument("Surface topology exceeds 32-bit adjacency encoding limits.");
 
         struct edge_face
         {
