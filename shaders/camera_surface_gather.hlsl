@@ -10,6 +10,8 @@ StructuredBuffer<uint> g_incident_corrections : register(t2);
 StructuredBuffer<float3> g_surface_corrections : register(t3);
 StructuredBuffer<uint2> g_triangle_incidence_ranges : register(t4);
 StructuredBuffer<uint> g_incident_triangle_corners : register(t5);
+StructuredBuffer<uint2> g_bending_incidence_ranges : register(t6);
+StructuredBuffer<uint> g_incident_bending_corners : register(t7);
 RWStructuredBuffer<Particle> g_particles_out : register(u0);
 
 cbuffer GatherConstants : register(b0)
@@ -18,6 +20,7 @@ cbuffer GatherConstants : register(b0)
     float max_correction;
     float delta_time;
     uint edge_count;
+    uint triangle_count;
 };
 
 [numthreads(256, 1, 1)]
@@ -43,6 +46,16 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     {
         const uint triangle_corner = g_incident_triangle_corners[triangle_range.x + offset];
         correction += g_surface_corrections[edge_count + triangle_corner];
+    }
+
+    const uint2 bending_range = g_bending_incidence_ranges[particle_index];
+    for (uint offset = 0; offset < bending_range.y; ++offset)
+    {
+        const uint hinge_corner = g_incident_bending_corners[bending_range.x + offset];
+        const uint hinge_index = hinge_corner >> 2u;
+        const uint corner_index = hinge_corner & 3u;
+        const uint correction_index = edge_count + triangle_count * 3u + hinge_index * 4u + corner_index;
+        correction += g_surface_corrections[correction_index];
     }
 
     const float correction_length = length(correction);
