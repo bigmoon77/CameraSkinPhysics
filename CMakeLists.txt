@@ -7,6 +7,7 @@ option(CSP_BUILD_D3D12_APP "Build the Direct3D 12 demo application" ON)
 add_library(CameraSkinPhysicsCore
     src/sphere_mesh.cpp
     src/obj_mesh.cpp
+    src/skinned_animation.cpp
     src/shape_matching.cpp
     src/tetrahedral_mesh.cpp
     src/benchmark_log.cpp
@@ -33,6 +34,10 @@ if(CSP_BUILD_TESTS)
     add_executable(CameraSkinPhysicsBenchmarkLogTests tests/benchmark_log_validation.cpp)
     target_link_libraries(CameraSkinPhysicsBenchmarkLogTests PRIVATE CameraSkinPhysicsCore)
     add_test(NAME CameraSkinPhysics.BenchmarkLogValidation COMMAND CameraSkinPhysicsBenchmarkLogTests)
+
+    add_executable(CameraSkinPhysicsSkinningTests tests/skinned_animation_validation.cpp)
+    target_link_libraries(CameraSkinPhysicsSkinningTests PRIVATE CameraSkinPhysicsCore)
+    add_test(NAME CameraSkinPhysics.SkeletalAnimationValidation COMMAND CameraSkinPhysicsSkinningTests)
 endif()
 
 if(WIN32 AND CSP_BUILD_D3D12_APP)
