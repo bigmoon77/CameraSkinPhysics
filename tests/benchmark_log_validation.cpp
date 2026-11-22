@@ -119,19 +119,21 @@ int main()
     check(std::abs(parse_number(columns, 8) - 0.5) < 1.0e-9,
         "camera gather time must be recorded");
     check(std::abs(parse_number(columns, 10) - 3.0) < 1.0e-9,
-        "collision compute time must be recorded");
+        "aggregate collision time must be recorded");
     check(std::abs(parse_number(columns, 11) - 1.25) < 1.0e-9,
+        "collision compute time must be recorded");
+    check(std::abs(parse_number(columns, 12) - 1.75) < 1.0e-9,
         "contact apply time must be recorded");
-    check(std::abs(parse_number(columns, 20) - 10.0) < 1.0e-9,
+    check(std::abs(parse_number(columns, 14) - 10.0) < 1.0e-9,
         "GPU total time must sum the four top-level GPU intervals");
-    check(std::abs(parse_number(columns, 21) - 100.0) < 1.0e-9,
+    check(std::abs(parse_number(columns, 15) - 100.0) < 1.0e-9,
         "GPU FPS must be derived from total GPU time");
-    check(parse_number(columns, 14) == 200000.0, "particle count must be recorded");
-    check(parse_number(columns, 15) == 0.0, "tetrahedron count must be recorded");
-    check(parse_number(columns, 16) == 123456.0, "selected solver memory must be recorded");
-    check(parse_number(columns, 17) == 987654.0, "resident simulation memory must be recorded");
-    check(parse_number(columns, 18) == 4.0, "solver iteration count must be recorded");
-    check(std::abs(parse_number(columns, 19) - 0.8) < 1.0e-6,
+    check(parse_number(columns, 16) == 200000.0, "particle count must be recorded");
+    check(parse_number(columns, 17) == 0.0, "tetrahedron count must be recorded");
+    check(parse_number(columns, 18) == 123456.0, "selected solver memory must be recorded");
+    check(parse_number(columns, 19) == 987654.0, "resident simulation memory must be recorded");
+    check(parse_number(columns, 20) == 4.0, "solver iteration count must be recorded");
+    check(std::abs(parse_number(columns, 21) - 0.8) < 1.0e-6,
         "edge relaxation must be recorded");
     check(std::abs(parse_number(columns, 27) - 0.10) < 1.0e-6,
         "contact band must be recorded");
