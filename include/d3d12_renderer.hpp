@@ -57,6 +57,8 @@ namespace csp
         void set_simulation_parameters(const simulation_parameters& parameters);
         simulation_parameters get_simulation_parameters() const;
         performance_metrics get_performance_metrics() const;
+        void set_simulation_paused(bool paused);
+        bool is_simulation_paused() const;
         void wait_gpu();
 
     private:
@@ -133,5 +135,6 @@ namespace csp
         solver_mode solver_mode_ = solver_mode::tetrahedral_xpbd;
         simulation_parameters simulation_parameters_{};
         performance_metrics performance_metrics_{};
+        bool simulation_paused_ = false;
     };
 }
