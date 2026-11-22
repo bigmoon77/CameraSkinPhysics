@@ -1574,7 +1574,7 @@ namespace csp
                 write_buffer_srv(gather_table, 2, compute_->incident_surface_corrections.Get(),
                     std::max(1u, compute_->edge_count * 2u), sizeof(std::uint32_t));
                 write_buffer_srv(gather_table, 3, body.edge_corrections.Get(),
-                    compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 4u,
+                    compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 2u,
                     sizeof(DirectX::XMFLOAT3));
                 write_buffer_srv(gather_table, 4, compute_->surface_triangle_ranges.Get(),
                     compute_->vertex_count, sizeof(mesh_uint2));
