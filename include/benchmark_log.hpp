@@ -17,7 +17,8 @@ namespace csp
             double gpu_simulation_ms, double camera_constraint_solve_ms,
             double camera_edge_solve_ms, double camera_area_solve_ms,
             double camera_bending_solve_ms, double camera_gather_ms, double gpu_depth_capture_ms,
-            double gpu_collision_ms, double gpu_render_ms,
+            double gpu_collision_ms, double gpu_collision_compute_ms,
+            double gpu_contact_apply_ms, double gpu_render_ms,
             std::uint64_t simulation_particle_count,
             std::uint64_t tetrahedron_count,
             std::uint64_t solver_buffer_bytes,
@@ -25,7 +26,7 @@ namespace csp
             std::uint32_t solver_iterations, float edge_relaxation,
             float max_correction, float particle_radius, float pushout,
             float velocity_friction, float restitution, float contact_band,
-            float shape_matching_strength);
+            float shape_matching_strength, std::uint32_t capture_resolution);
 
     private:
         std::ofstream stream_;
