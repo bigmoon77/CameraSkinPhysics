@@ -35,19 +35,18 @@ namespace
         const wchar_t* label;
         float minimum;
         float maximum;
-        float scale;
         bool integer;
     };
 
     constexpr parameter_description parameter_descriptions[parameter_count] = {
-        {L"Solver iterations", 1.0f, 4.0f, 1.0f, true},
-        {L"Edge relaxation", 0.0f, 1.5f, 1000.0f, false},
-        {L"Max correction", 0.0001f, 0.05f, 100000.0f, false},
-        {L"Particle radius", 0.001f, 0.05f, 100000.0f, false},
-        {L"Pushout", 0.0f, 0.03f, 100000.0f, false},
-        {L"Velocity friction", 0.0f, 1.0f, 1000.0f, false},
-        {L"Restitution", 0.0f, 1.0f, 1000.0f, false},
-        {L"Contact band", 0.005f, 0.5f, 1000.0f, false}
+        {L"Solver iterations", 1.0f, 4.0f, true},
+        {L"Camera edge relaxation", 0.0f, 1.5f, false},
+        {L"Gather max correction", 0.0001f, 0.05f, false},
+        {L"Camera particle radius", 0.001f, 0.05f, false},
+        {L"Camera pushout", 0.0f, 0.03f, false},
+        {L"Camera velocity friction", 0.0f, 1.0f, false},
+        {L"Camera restitution", 0.0f, 1.0f, false},
+        {L"Camera contact band", 0.005f, 0.5f, false}
     };
 
     float get_parameter_value(const csp::simulation_parameters& parameters, int index)
