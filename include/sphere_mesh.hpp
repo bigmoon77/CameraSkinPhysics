@@ -60,7 +60,7 @@ namespace csp
         std::vector<std::uint32_t> incident_triangle_corners;
         std::vector<bending_constraint> bending;
         std::vector<mesh_uint2> bending_incidence_ranges;
-        // Encodes bending_constraint_index * 4 + corner_index.
+        // Encodes bending_constraint_index * 2 + opposite_vertex_index (0 or 1).
         std::vector<std::uint32_t> incident_bending_corners;
         surface_topology_info topology;
     };
