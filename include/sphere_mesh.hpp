@@ -55,6 +55,9 @@ namespace csp
         std::vector<mesh_uint2> edge_incidence_ranges;
         std::vector<std::uint32_t> incident_corrections;
         std::vector<triangle_area_constraint> triangle_areas;
+        std::vector<mesh_uint2> triangle_incidence_ranges;
+        // Encodes triangle_index * 3 + corner_index for each incident vertex.
+        std::vector<std::uint32_t> incident_triangle_corners;
         std::vector<bending_constraint> bending;
         surface_topology_info topology;
     };
