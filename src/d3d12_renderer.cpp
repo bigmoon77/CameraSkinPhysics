@@ -1495,13 +1495,13 @@ namespace csp
                     compute_->vertex_count, sizeof(simulation_particle));
                 write_buffer_srv(shape_apply_table, 1, compute_->surface_rest_positions.Get(),
                     compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
-                write_buffer_srv(shape_apply_table, 2, compute_->vertex_cluster_ranges.Get(),
+                write_buffer_srv(shape_apply_table, 4, compute_->vertex_cluster_ranges.Get(),
                     compute_->vertex_count, sizeof(mesh_uint2));
-                write_buffer_srv(shape_apply_table, 3, compute_->vertex_clusters.Get(),
+                write_buffer_srv(shape_apply_table, 5, compute_->vertex_clusters.Get(),
                     compute_->shape_membership_count, sizeof(std::uint32_t));
-                write_buffer_srv(shape_apply_table, 4, body.shape_cluster_transforms.Get(),
+                write_buffer_srv(shape_apply_table, 6, body.shape_cluster_transforms.Get(),
                     compute_->shape_cluster_count, sizeof(DirectX::XMFLOAT4) * 3u);
-                write_buffer_uav(shape_apply_table, 0, body.particles[shape_output].Get(),
+                write_buffer_uav(shape_apply_table, 1, body.particles[shape_output].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
                 const shape_apply_constants shape_apply_values{
                     compute_->vertex_count, simulation_parameters_.shape_matching_strength,
