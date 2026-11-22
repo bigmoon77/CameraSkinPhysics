@@ -274,6 +274,15 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12Resource> inverse_masses;
         Microsoft::WRL::ComPtr<ID3D12Resource> rest_positions;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_rest_positions;
+        DirectX::XMFLOAT4* mapped_surface_rest_positions = nullptr;
+        surface_edge* mapped_surface_edges = nullptr;
+        triangle_area_constraint* mapped_surface_triangle_areas = nullptr;
+        bending_constraint* mapped_surface_bending = nullptr;
+        skeletal_animation animation;
+        std::vector<std::array<float, 3>> skeletal_rest_positions;
+        std::vector<skin_vertex_weights> skeletal_vertex_weights;
+        std::vector<skin_matrix> sampled_skin_matrices;
+        float animation_time = 0.0f;
         Microsoft::WRL::ComPtr<ID3D12Resource> shape_cluster_ranges;
         Microsoft::WRL::ComPtr<ID3D12Resource> shape_cluster_vertices;
         Microsoft::WRL::ComPtr<ID3D12Resource> vertex_cluster_ranges;
@@ -320,11 +329,23 @@ namespace csp
     d3d12_renderer::~d3d12_renderer()
     {
         wait_gpu();
+        if (compute_)
+        {
+            if (compute_->surface_rest_positions && compute_->mapped_surface_rest_positions)
+                compute_->surface_rest_positions->Unmap(0, nullptr);
+            if (compute_->surface_edges && compute_->mapped_surface_edges)
+                compute_->surface_edges->Unmap(0, nullptr);
+            if (compute_->surface_triangle_areas && compute_->mapped_surface_triangle_areas)
+                compute_->surface_triangle_areas->Unmap(0, nullptr);
+            if (compute_->surface_bending && compute_->mapped_surface_bending)
+                compute_->surface_bending->Unmap(0, nullptr);
+        }
         if (fence_event_ != nullptr) CloseHandle(fence_event_);
     }
 
     bool d3d12_renderer::initialize(HWND window, std::uint32_t width, std::uint32_t height,
-        const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh)
+        const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh,
+        const skeletal_animation* animation)
     {
         width_ = width;
         height_ = height;
@@ -403,7 +424,7 @@ namespace csp
             || !create_sphere_pipeline()
             || !create_capture_pipeline()
             || !create_compute_pipelines()
-            || !create_compute_resources(surface_mesh, volume_mesh)) return false;
+            || !create_compute_resources(surface_mesh, volume_mesh, animation)) return false;
 
         D3D12_QUERY_HEAP_DESC query_description{};
         query_description.Count = 5u + max_solver_iterations * 8u;
@@ -712,7 +733,8 @@ namespace csp
             && create_pipeline(L"camera_surface_shape_apply.dxil", compute_->camera_surface_shape_apply_pipeline);
     }
 
-    bool d3d12_renderer::create_compute_resources(const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh)
+    bool d3d12_renderer::create_compute_resources(const sphere_mesh& surface_mesh,
+        const tetrahedral_mesh& volume_mesh, const skeletal_animation* animation)
     {
         compute_->particle_count = static_cast<std::uint32_t>(volume_mesh.particles.size());
         compute_->tetrahedron_count = static_cast<std::uint32_t>(volume_mesh.tetrahedra.size());
@@ -754,6 +776,17 @@ namespace csp
                 surface_vertex.position[2], 1.0f);
         compute_->surface_rest_positions = create_upload_buffer(device_.Get(), surface_rest_positions.data(),
             surface_rest_positions.size() * sizeof(DirectX::XMFLOAT4));
+        compute_->skeletal_rest_positions.reserve(surface_mesh.vertices.size());
+        for (const vertex& source_vertex : surface_mesh.vertices)
+            compute_->skeletal_rest_positions.push_back({source_vertex.position[0],
+                source_vertex.position[1], source_vertex.position[2]});
+        if (animation != nullptr && !animation->frames.empty())
+        {
+            if (animation->vertex_weights.size() != surface_mesh.vertices.size()
+                || animation->frames.front().size() != animation->bones.size()) return false;
+            compute_->animation = *animation;
+            compute_->skeletal_vertex_weights = animation->vertex_weights;
+        }
         compute_->shape_cluster_ranges = upload_vector(shape_clusters.cluster_vertex_ranges);
         compute_->shape_cluster_vertices = upload_vector(shape_clusters.cluster_vertices);
         compute_->vertex_cluster_ranges = upload_vector(shape_clusters.vertex_cluster_ranges);
@@ -787,6 +820,20 @@ namespace csp
             || !compute_->incident_surface_triangles || !compute_->surface_bending
             || !compute_->surface_bending_ranges || !compute_->incident_surface_bending)
             return false;
+
+        const D3D12_RANGE no_read_range{0, 0};
+        void* mapped_data = nullptr;
+        if (FAILED(compute_->surface_rest_positions->Map(0, &no_read_range, &mapped_data))) return false;
+        compute_->mapped_surface_rest_positions = static_cast<DirectX::XMFLOAT4*>(mapped_data);
+        mapped_data = nullptr;
+        if (FAILED(compute_->surface_edges->Map(0, &no_read_range, &mapped_data))) return false;
+        compute_->mapped_surface_edges = static_cast<surface_edge*>(mapped_data);
+        mapped_data = nullptr;
+        if (FAILED(compute_->surface_triangle_areas->Map(0, &no_read_range, &mapped_data))) return false;
+        compute_->mapped_surface_triangle_areas = static_cast<triangle_area_constraint*>(mapped_data);
+        mapped_data = nullptr;
+        if (FAILED(compute_->surface_bending->Map(0, &no_read_range, &mapped_data))) return false;
+        compute_->mapped_surface_bending = static_cast<bending_constraint*>(mapped_data);
 
         std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> volume_uploads;
         std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> surface_uploads;
@@ -1227,6 +1274,76 @@ namespace csp
                 lambda_read = lambda_write;
             }
             body.lambda_zero_is_srv = lambda_read == 0;
+        }
+    }
+
+    void d3d12_renderer::update_skeletal_pose(float delta_time)
+    {
+        if (compute_->animation.frames.empty() || compute_->animation.bones.empty()
+            || compute_->skeletal_vertex_weights.size() != compute_->vertex_count
+            || compute_->mapped_surface_rest_positions == nullptr
+            || compute_->mapped_surface_edges == nullptr
+            || compute_->mapped_surface_triangle_areas == nullptr
+            || compute_->mapped_surface_bending == nullptr)
+            return;
+
+        compute_->animation_time += std::clamp(delta_time, 0.0f, 0.1f);
+        sample_skin_matrices(compute_->animation, compute_->animation_time,
+            compute_->sampled_skin_matrices);
+
+        for (std::uint32_t vertex_index = 0; vertex_index < compute_->vertex_count; ++vertex_index)
+        {
+            const std::array<float, 3> position = skin_vertex_position(
+                compute_->skeletal_rest_positions[vertex_index],
+                compute_->skeletal_vertex_weights[vertex_index],
+                compute_->sampled_skin_matrices);
+            compute_->mapped_surface_rest_positions[vertex_index] =
+                DirectX::XMFLOAT4(position[0], position[1], position[2], 1.0f);
+        }
+
+        const auto position_at = [this](std::uint32_t index) -> const DirectX::XMFLOAT4&
+        {
+            return compute_->mapped_surface_rest_positions[index];
+        };
+        for (std::uint32_t edge_index = 0; edge_index < compute_->edge_count; ++edge_index)
+        {
+            surface_edge& edge = compute_->mapped_surface_edges[edge_index];
+            const DirectX::XMFLOAT4& a = position_at(edge.indices[0]);
+            const DirectX::XMFLOAT4& b = position_at(edge.indices[1]);
+            const float x = b.x - a.x;
+            const float y = b.y - a.y;
+            const float z = b.z - a.z;
+            edge.rest_length = std::sqrt(x * x + y * y + z * z);
+        }
+
+        for (std::uint32_t triangle_index = 0; triangle_index < compute_->triangle_count; ++triangle_index)
+        {
+            triangle_area_constraint& triangle = compute_->mapped_surface_triangle_areas[triangle_index];
+            const DirectX::XMFLOAT4& a = position_at(triangle.indices[0]);
+            const DirectX::XMFLOAT4& b = position_at(triangle.indices[1]);
+            const DirectX::XMFLOAT4& c = position_at(triangle.indices[2]);
+            const float ab_x = b.x - a.x;
+            const float ab_y = b.y - a.y;
+            const float ab_z = b.z - a.z;
+            const float ac_x = c.x - a.x;
+            const float ac_y = c.y - a.y;
+            const float ac_z = c.z - a.z;
+            const float cross_x = ab_y * ac_z - ab_z * ac_y;
+            const float cross_y = ab_z * ac_x - ab_x * ac_z;
+            const float cross_z = ab_x * ac_y - ab_y * ac_x;
+            triangle.rest_area = 0.5f * std::sqrt(
+                cross_x * cross_x + cross_y * cross_y + cross_z * cross_z);
+        }
+
+        for (std::uint32_t hinge_index = 0; hinge_index < compute_->bending_count; ++hinge_index)
+        {
+            bending_constraint& hinge = compute_->mapped_surface_bending[hinge_index];
+            const DirectX::XMFLOAT4& a = position_at(hinge.indices[2]);
+            const DirectX::XMFLOAT4& b = position_at(hinge.indices[3]);
+            const float x = b.x - a.x;
+            const float y = b.y - a.y;
+            const float z = b.z - a.z;
+            hinge.rest_distance = std::sqrt(x * x + y * y + z * z);
         }
     }
 
@@ -1706,6 +1823,7 @@ namespace csp
         {
             if (use_camera_surface)
             {
+                update_skeletal_pose(delta_time);
                 simulate_camera_surface(delta_time);
                 skin_camera_body(0);
                 skin_camera_body(1);
