@@ -1129,7 +1129,7 @@ namespace csp
             body.particle_read = integration_output;
 
             std::uint32_t lambda_read = 0;
-            for (std::uint32_t iteration = 0; iteration < solver_iterations; ++iteration)
+            for (std::uint32_t iteration = 0; iteration < simulation_parameters_.solver_iterations; ++iteration)
             {
                 if (body.correction_is_srv)
                 {
