@@ -7,7 +7,7 @@ struct Particle
 StructuredBuffer<Particle> g_particles_in : register(t0);
 StructuredBuffer<uint2> g_incidence_ranges : register(t1);
 StructuredBuffer<uint> g_incident_corrections : register(t2);
-StructuredBuffer<float4> g_edge_corrections : register(t3);
+StructuredBuffer<float3> g_edge_corrections : register(t3);
 RWStructuredBuffer<Particle> g_particles_out : register(u0);
 
 cbuffer GatherConstants : register(b0)
@@ -31,7 +31,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     for (uint offset = 0; offset < range.y; ++offset)
     {
         const uint correction_index = g_incident_corrections[range.x + offset];
-        correction += g_edge_corrections[correction_index].xyz;
+        correction += g_edge_corrections[correction_index];
     }
 
     const float correction_length = length(correction);
