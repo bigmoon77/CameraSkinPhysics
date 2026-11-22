@@ -221,6 +221,7 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_edges;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_edge_ranges;
         Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_corrections;
+        Microsoft::WRL::ComPtr<ID3D12Resource> surface_gather_vertex_indices;
         std::array<gpu_body, 2> bodies;
         std::array<camera_gpu_body, 2> camera_bodies;
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature;
@@ -642,7 +643,8 @@ namespace csp
         if (compute_->particle_count == 0 || compute_->tetrahedron_count == 0
             || compute_->vertex_count == 0 || compute_->edge_count == 0
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
-            || surface_mesh.incident_corrections.size() != surface_mesh.edges.size() * 2)
+            || surface_mesh.incident_corrections.size() != surface_mesh.edges.size() * 2
+            || surface_mesh.gather_vertex_indices.size() != surface_mesh.vertices.size())
             return false;
 
         const auto upload_vector = [this](const auto& values) -> Microsoft::WRL::ComPtr<ID3D12Resource>
@@ -666,11 +668,13 @@ namespace csp
         compute_->surface_edges = upload_vector(surface_mesh.edges);
         compute_->surface_edge_ranges = upload_vector(surface_mesh.edge_incidence_ranges);
         compute_->incident_surface_corrections = upload_vector(surface_mesh.incident_corrections);
+        compute_->surface_gather_vertex_indices = upload_vector(surface_mesh.gather_vertex_indices);
 
         if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra
             || !compute_->incidence_ranges || !compute_->incident_tetrahedra
             || !compute_->tetrahedron_indices || !compute_->surface_mappings
-            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections)
+            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections
+            || !compute_->surface_gather_vertex_indices)
             return false;
 
         std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> volume_uploads;
@@ -847,6 +851,7 @@ namespace csp
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edge_ranges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_corrections.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_gather_vertex_indices.Get());
         compute_->resident_simulation_buffer_bytes =
             compute_->tetrahedral_buffer_bytes + compute_->camera_surface_buffer_bytes;
 
@@ -1183,6 +1188,8 @@ namespace csp
                     compute_->edge_count * 2, sizeof(std::uint32_t));
                 write_buffer_srv(gather_table, 3, body.edge_corrections.Get(),
                     compute_->edge_count, sizeof(DirectX::XMFLOAT3));
+                write_buffer_srv(gather_table, 4, compute_->surface_gather_vertex_indices.Get(),
+                    compute_->vertex_count, sizeof(std::uint32_t));
                 write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
 
