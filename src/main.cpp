@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <windows.h>
 #include <commctrl.h>
 #include <array>
 #include <sstream>
@@ -12,7 +13,6 @@
 #include <cwchar>
 #include <exception>
 #include <string>
-#include <windows.h>
 
 namespace
 {
@@ -24,6 +24,7 @@ namespace
     HWND parameter_sliders[parameter_count]{};
     HWND parameter_value_labels[parameter_count]{};
     HWND parameter_window = nullptr;
+    HWND performance_label = nullptr;
     csp::d3d12_renderer* active_renderer = nullptr;
     bool benchmark_running = false;
 
@@ -94,6 +95,20 @@ namespace
         }
     }
 
+    void update_performance_controls()
+    {
+        if (active_renderer == nullptr || performance_label == nullptr) return;
+        const csp::performance_metrics metrics = active_renderer->get_performance_metrics();
+        std::wostringstream text;
+        text << std::fixed << std::setprecision(2)
+            << L"CPU " << metrics.cpu_frame_ms << L" ms    GPU " << metrics.gpu_total_ms << L" ms\n"
+            << L"Simulation " << metrics.gpu_simulation_ms << L" ms    Collision "
+            << metrics.gpu_collision_ms << L" ms    Render " << metrics.gpu_render_ms << L" ms\n"
+            << L"Edge Solve " << metrics.camera_edge_solve_ms << L" ms    Gather "
+            << metrics.camera_gather_ms << L" ms";
+        SetWindowTextW(performance_label, text.str().c_str());
+    }
+
     void apply_parameter_control(HWND slider)
     {
         if (active_renderer == nullptr || slider == nullptr) return;
@@ -137,7 +152,11 @@ namespace
                 16, 18 + parameter_count * 76, 384, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_reset_id)),
                 GetModuleHandleW(nullptr), nullptr);
+            performance_label = CreateWindowExW(0, L"STATIC", L"CPU -- ms    GPU -- ms",
+                WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 76 + 40,
+                400, 58, window, nullptr, GetModuleHandleW(nullptr), nullptr);
             update_parameter_controls();
+            update_performance_controls();
             return 0;
         }
         if (message == WM_HSCROLL)
@@ -358,6 +377,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
                 const float delta_time = std::chrono::duration<float>(current_frame - previous_frame).count();
                 previous_frame = current_frame;
                 renderer.render(delta_time);
+                update_performance_controls();
             }
         }
 
