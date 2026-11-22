@@ -1333,6 +1333,16 @@ namespace csp
             }
         }
         const double ticks_to_ms = 1000.0 / static_cast<double>(timestamp_frequency_);
+        performance_metrics_.cpu_frame_ms = cpu_frame_ms;
+        performance_metrics_.gpu_simulation_ms = static_cast<double>(simulation_ticks) * ticks_to_ms;
+        performance_metrics_.camera_edge_solve_ms = static_cast<double>(camera_edge_ticks) * ticks_to_ms;
+        performance_metrics_.camera_gather_ms = static_cast<double>(camera_gather_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_depth_capture_ms = static_cast<double>(capture_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_collision_ms = static_cast<double>(collision_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_render_ms = static_cast<double>(render_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_total_ms = performance_metrics_.gpu_simulation_ms
+            + performance_metrics_.gpu_depth_capture_ms + performance_metrics_.gpu_collision_ms
+            + performance_metrics_.gpu_render_ms;
         const std::uint64_t particle_count =
             (mode_index == 1u ? compute_->vertex_count : compute_->particle_count) * 2ull;
         const std::uint64_t tetrahedron_count =
@@ -1575,6 +1585,11 @@ namespace csp
     simulation_parameters d3d12_renderer::get_simulation_parameters() const
     {
         return simulation_parameters_;
+    }
+
+    performance_metrics d3d12_renderer::get_performance_metrics() const
+    {
+        return performance_metrics_;
     }
 
     void d3d12_renderer::wait_gpu()
