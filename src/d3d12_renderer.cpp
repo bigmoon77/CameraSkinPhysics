@@ -1660,6 +1660,12 @@ namespace csp
         clear_descriptor_table(table);
         write_buffer_srv(table, 0, body.particles[body.particle_read].Get(),
             compute_->vertex_count, sizeof(simulation_particle));
+        write_buffer_srv(table, 1, compute_->surface_triangle_ranges.Get(),
+            compute_->vertex_count, sizeof(mesh_uint2));
+        write_buffer_srv(table, 2, compute_->incident_surface_triangles.Get(),
+            compute_->triangle_count * 3u, sizeof(std::uint32_t));
+        write_buffer_srv(table, 3, compute_->surface_triangle_areas.Get(),
+            compute_->triangle_count, sizeof(triangle_area_constraint));
         write_buffer_uav(table, 0, body.vertices.Get(), compute_->vertex_count, sizeof(vertex));
         const skin_constants constants{
             compute_->vertex_count, {body.center_x, 0.0f, 0.0f}
