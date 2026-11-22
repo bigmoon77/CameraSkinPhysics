@@ -31,14 +31,9 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
     const uint index = dispatch_id.x;
     if (index >= particle_count) return;
     const float4 own = g_corrections_in[index];
-    if (own.w <= 0.0f)
-    {
-        g_corrections_out[index] = own;
-        return;
-    }
-
     float3 sum = own.xyz;
     float weight_sum = 1.0f;
+    float propagated_contact = own.w;
     const uint2 range = g_edge_ranges[index];
     for (uint offset = 0; offset < range.y; ++offset)
     {
@@ -50,26 +45,25 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
             continue;
 
         const float4 neighbor = g_corrections_in[neighbor_index];
-        if (neighbor.w <= 0.0f)
-            continue;
-
         const float own_length = length(own.xyz);
         const float neighbor_length = length(neighbor.xyz);
-        if (own_length <= 1.0e-7f || neighbor_length <= 1.0e-7f)
-            continue;
+        float weight = 1.0f;
+        if (own_length > 1.0e-7f && neighbor_length > 1.0e-7f)
+        {
+            const float direction_similarity = dot(normalize(own.xyz), normalize(neighbor.xyz));
+            if (direction_similarity < 0.25f)
+                continue;
+            weight = saturate((direction_similarity - 0.25f) / 0.75f);
+        }
 
-        const float direction_similarity = dot(normalize(own.xyz), normalize(neighbor.xyz));
-        if (direction_similarity < 0.25f)
-            continue;
-
-        const float weight = saturate((direction_similarity - 0.25f) / 0.75f);
         sum += neighbor.xyz * weight;
         weight_sum += weight;
+        propagated_contact = max(propagated_contact, neighbor.w);
     }
 
     const float3 average = sum / weight_sum;
     g_corrections_out[index] = float4(
-        lerp(own.xyz, average, saturate(blend_strength)), own.w);
+        lerp(own.xyz, average, saturate(blend_strength)), propagated_contact);
 }
 
 StructuredBuffer<Particle> g_particles_in : register(t4);
