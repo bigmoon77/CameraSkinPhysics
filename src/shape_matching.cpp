@@ -98,7 +98,6 @@ namespace csp
             cluster_index < static_cast<std::uint32_t>(core_clusters.size()); ++cluster_index)
         {
             members = core_clusters[cluster_index];
-            std::fill(member_marks.begin(), member_marks.end(), 0u);
             const std::uint32_t mark = cluster_index + 1u;
             for (const std::uint32_t vertex_index : members)
                 member_marks[vertex_index] = mark;
