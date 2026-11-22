@@ -11,13 +11,14 @@ struct SurfaceEdge
     float compliance;
 };
 
-StructuredBuffer<float4> g_corrections_in : register(t0);
+StructuredBuffer<float4> g_corrections : register(t0);
 StructuredBuffer<uint2> g_edge_ranges : register(t1);
 StructuredBuffer<uint> g_incident_edge_corrections : register(t2);
 StructuredBuffer<SurfaceEdge> g_surface_edges : register(t3);
-RWStructuredBuffer<float4> g_corrections_out : register(u0);
+StructuredBuffer<Particle> g_particles_in : register(t4);
+RWStructuredBuffer<Particle> g_particles_out : register(u1);
 
-cbuffer SmoothConstants : register(b0)
+cbuffer ApplyConstants : register(b0)
 {
     uint particle_count;
     float blend_strength;
@@ -26,11 +27,12 @@ cbuffer SmoothConstants : register(b0)
 };
 
 [numthreads(256, 1, 1)]
-void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
+void apply_corrections(uint3 dispatch_id : SV_DispatchThreadID)
 {
     const uint index = dispatch_id.x;
     if (index >= particle_count) return;
-    const float4 own = g_corrections_in[index];
+
+    const float4 own = g_corrections[index];
     const float own_length = length(own.xyz);
     const float3 own_direction = own_length > 1.0e-7f ? own.xyz / own_length : 0.0f;
     float3 sum = own.xyz;
@@ -45,7 +47,7 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
         if (neighbor_index >= particle_count || neighbor_index == index)
             continue;
 
-        const float4 neighbor = g_corrections_in[neighbor_index];
+        const float4 neighbor = g_corrections[neighbor_index];
         const float neighbor_length = length(neighbor.xyz);
         float weight = 1.0f;
         if (own_length > 1.0e-7f && neighbor_length > 1.0e-7f)
@@ -61,56 +63,8 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
     }
 
     const float3 average = sum / weight_sum;
-    g_corrections_out[index] = float4(
-        lerp(own.xyz, average, saturate(blend_strength)), own.w);
-}
-
-StructuredBuffer<uint2> g_apply_edge_ranges : register(t1);
-StructuredBuffer<uint> g_apply_incident_edge_corrections : register(t2);
-StructuredBuffer<SurfaceEdge> g_apply_surface_edges : register(t3);
-StructuredBuffer<Particle> g_particles_in : register(t4);
-StructuredBuffer<float4> g_final_corrections : register(t5);
-RWStructuredBuffer<Particle> g_particles_out : register(u1);
-
-[numthreads(256, 1, 1)]
-void apply_corrections(uint3 dispatch_id : SV_DispatchThreadID)
-{
-    const uint index = dispatch_id.x;
-    if (index >= particle_count) return;
-
-    const float4 own = g_final_corrections[index];
-    const float own_length = length(own.xyz);
-    float3 sum = own.xyz;
-    float weight_sum = 1.0f;
-    const uint2 range = g_apply_edge_ranges[index];
-    for (uint offset = 0; offset < range.y; ++offset)
-    {
-        const uint encoded_edge = g_apply_incident_edge_corrections[range.x + offset];
-        const SurfaceEdge edge = g_apply_surface_edges[encoded_edge >> 1u];
-        const uint neighbor_index = (encoded_edge & 1u) != 0u
-            ? edge.indices.x : edge.indices.y;
-        if (neighbor_index >= particle_count || neighbor_index == index)
-            continue;
-
-        const float4 neighbor = g_final_corrections[neighbor_index];
-        const float neighbor_length = length(neighbor.xyz);
-        float weight = 1.0f;
-        if (own_length > 1.0e-7f && neighbor_length > 1.0e-7f)
-        {
-            const float direction_similarity = dot(
-                own.xyz / own_length, neighbor.xyz / neighbor_length);
-            if (direction_similarity < 0.25f)
-                continue;
-            weight = saturate((direction_similarity - 0.25f) / 0.75f);
-        }
-
-        sum += neighbor.xyz * weight;
-        weight_sum += weight;
-    }
-
-    const float3 average = sum / weight_sum;
     const float3 smoothed = lerp(own.xyz, average, saturate(blend_strength));
     Particle particle = g_particles_in[index];
-    particle.position.xyz += smoothed;
+    particle.position.xyz += smoothed - own.xyz;
     g_particles_out[index] = particle;
 }
