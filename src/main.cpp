@@ -46,8 +46,10 @@ namespace
         RECT rect{};
         if (GetWindowRect(child, &rect))
         {
+            POINT position{rect.left, rect.top};
+            MapWindowPoints(HWND_DESKTOP, GetParent(child), &position, 1);
             const int delta = static_cast<int>(delta_value);
-            SetWindowPos(child, nullptr, 0, rect.top - delta, 0, 0,
+            SetWindowPos(child, nullptr, position.x, position.y - delta, 0, 0,
                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
         }
         return TRUE;
