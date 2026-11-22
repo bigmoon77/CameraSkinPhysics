@@ -38,6 +38,51 @@ namespace
     bool benchmark_running = false;
     std::filesystem::path active_obj_path;
     bool custom_model_loaded = false;
+    int parameter_scroll_position = 0;
+    int parameter_content_height = 0;
+
+    BOOL CALLBACK scroll_parameter_children(HWND child, LPARAM delta_value)
+    {
+        RECT rect{};
+        if (GetWindowRect(child, &rect))
+        {
+            const int delta = static_cast<int>(delta_value);
+            SetWindowPos(child, nullptr, 0, rect.top - delta, 0, 0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
+        }
+        return TRUE;
+    }
+
+    void update_parameter_scrollbar(HWND window)
+    {
+        RECT client{};
+        GetClientRect(window, &client);
+        const int page_height = std::max(0L, client.bottom - client.top);
+        const int maximum_position = std::max(0, parameter_content_height - page_height);
+        parameter_scroll_position = std::clamp(parameter_scroll_position, 0, maximum_position);
+        SCROLLINFO info{};
+        info.cbSize = sizeof(info);
+        info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        info.nMin = 0;
+        info.nMax = std::max(0, parameter_content_height - 1);
+        info.nPage = static_cast<UINT>(page_height);
+        info.nPos = parameter_scroll_position;
+        SetScrollInfo(window, SB_VERT, &info, TRUE);
+    }
+
+    void scroll_parameter_window(HWND window, int requested_position)
+    {
+        RECT client{};
+        GetClientRect(window, &client);
+        const int page_height = std::max(0L, client.bottom - client.top);
+        const int maximum_position = std::max(0, parameter_content_height - page_height);
+        const int next_position = std::clamp(requested_position, 0, maximum_position);
+        const int delta = next_position - parameter_scroll_position;
+        if (delta == 0) return;
+        parameter_scroll_position = next_position;
+        EnumChildWindows(window, scroll_parameter_children, static_cast<LPARAM>(delta));
+        update_parameter_scrollbar(window);
+    }
 
     struct parameter_description
     {
@@ -348,6 +393,42 @@ with open(output_path, "w", encoding="utf-8") as output:
                 GetModuleHandleW(nullptr), nullptr);
             update_parameter_controls();
             update_performance_controls();
+            parameter_content_height = 18 + parameter_count * 62 + 195;
+            update_parameter_scrollbar(window);
+            return 0;
+        }
+        if (message == WM_SIZE)
+        {
+            update_parameter_scrollbar(window);
+            return 0;
+        }
+        if (message == WM_VSCROLL)
+        {
+            SCROLLINFO info{};
+            info.cbSize = sizeof(info);
+            info.fMask = SIF_ALL;
+            GetScrollInfo(window, SB_VERT, &info);
+            int position = info.nPos;
+            switch (LOWORD(wparam))
+            {
+            case SB_LINEUP: position -= 40; break;
+            case SB_LINEDOWN: position += 40; break;
+            case SB_PAGEUP: position -= static_cast<int>(info.nPage); break;
+            case SB_PAGEDOWN: position += static_cast<int>(info.nPage); break;
+            case SB_THUMBTRACK: position = info.nTrackPos; break;
+            case SB_THUMBPOSITION: position = info.nTrackPos; break;
+            case SB_TOP: position = 0; break;
+            case SB_BOTTOM: position = parameter_content_height; break;
+            default: return 0;
+            }
+            scroll_parameter_window(window, position);
+            return 0;
+        }
+        if (message == WM_MOUSEWHEEL)
+        {
+            const int wheel_delta = GET_WHEEL_DELTA_WPARAM(wparam);
+            scroll_parameter_window(window, parameter_scroll_position
+                - (wheel_delta / WHEEL_DELTA) * 60);
             return 0;
         }
         if (message == WM_HSCROLL)
@@ -544,8 +625,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         update_window_title(window);
         parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
             parameter_window_class_name, L"CameraSkinPhysics | \u30d1\u30e9\u30e1\u30fc\u30bf",
-            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-            CW_USEDEFAULT, CW_USEDEFAULT, 560, 18 + parameter_count * 62 + 155,
+            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VSCROLL | WS_CLIPCHILDREN,
+            CW_USEDEFAULT, CW_USEDEFAULT, 560, 700,
             window, nullptr, instance, nullptr);
         if (parameter_window == nullptr)
             throw std::runtime_error("Failed to create parameter window.");
