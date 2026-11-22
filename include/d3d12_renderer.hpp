@@ -48,6 +48,8 @@ namespace csp
         double camera_gather_ms = 0.0;
         double gpu_depth_capture_ms = 0.0;
         double gpu_collision_ms = 0.0;
+        double gpu_collision_compute_ms = 0.0;
+        double gpu_contact_apply_ms = 0.0;
         double gpu_render_ms = 0.0;
         double gpu_total_ms = 0.0;
     };
@@ -72,12 +74,14 @@ namespace csp
         void set_simulation_paused(bool paused);
         bool is_simulation_paused() const;
         void wait_gpu();
+        bool set_capture_resolution(std::uint32_t resolution);
+        std::uint32_t get_capture_resolution() const;
 
     private:
         struct compute_state;
         static constexpr std::uint32_t frame_count = 2;
         static constexpr std::uint32_t capture_count = 2;
-        static constexpr std::uint32_t capture_size = 1024;
+        static constexpr std::uint32_t default_capture_size = 1024;
 
         void create_render_targets();
         void create_capture_targets();
@@ -138,6 +142,7 @@ namespace csp
         std::uint32_t index_count_ = 0;
         std::uint32_t width_ = 0;
         std::uint32_t height_ = 0;
+        std::uint32_t capture_size_ = default_capture_size;
         std::uint32_t rtv_descriptor_size_ = 0;
         std::uint32_t dsv_descriptor_size_ = 0;
         std::uint32_t capture_rtv_descriptor_size_ = 0;
