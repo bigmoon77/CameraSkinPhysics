@@ -31,6 +31,7 @@ Each mode owns independent particle state. Switching to a mode for the first tim
 - 接触判定の幅: 0.005–0.5。
 - エッジ長・面積・曲げのコンプライアンス: それぞれ独立して調整可能。スライダーは対数目盛で、値が小さいほど硬く、大きいほど柔らかくなります。初期値はエッジ長 2e-6、面積 1e-7、曲げ 2e-4 です。
 - クラスタ形状の復元強度: 0.0–1.0。重なりを持つ局所クラスタごとに最適回転・平行移動をGPUで推定し、元の局所形状へ近づけます。初期値は 0.25 です。
+- ボーン追従の強さ: 0.0–1.0。アニメーションから計算した各頂点の絶対目標位置へ引き寄せます。初期値は 0.35 です。ボーン付きモデルでのみ有効です。
 
 The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, combined surface-constraint-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
 
@@ -115,8 +116,8 @@ largest weights are retained and normalized. Animation is sampled at the scene f
 continuously at runtime.
 
 The renderer updates the surface rest positions and edge-length, triangle-area and hinge-distance rest
-metrics from the current bone pose before each F2 simulation step. Cluster shape matching therefore
-follows the animated pose while the XPBD constraints and camera-space contact allow secondary motion.
+metrics from the current bone pose before each F2 simulation step. The per-vertex bone-follow term drives particles toward the animated pose while cluster shape matching,
+XPBD constraints and camera-space contact provide local shape preservation and secondary motion.
 The pose sampling and rest-metric refresh currently run on the CPU; the XPBD solver remains on the GPU.
 
 Imported models run with the camera-surface XPBD solver (F2); the tetrahedral solver (F1) remains
