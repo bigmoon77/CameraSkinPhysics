@@ -66,6 +66,9 @@ void build_transforms(uint3 dispatch_id : SV_DispatchThreadID)
         row0 *= inverse_length;
         row1 *= inverse_length;
         row2 *= inverse_length;
+        row0.x += 1.0e-4f;
+        row1.y += 1.0e-4f;
+        row2.z += 1.0e-4f;
 
         const float3 column0 = float3(row0.x, row1.x, row2.x);
         const float3 column1 = float3(row0.y, row1.y, row2.y);
@@ -96,18 +99,28 @@ void build_transforms(uint3 dispatch_id : SV_DispatchThreadID)
             }
         }
 
-        for (uint iteration = 0; iteration < 8u; ++iteration)
+        bool rotation_valid = true;
+        for (uint iteration = 0; iteration < 12u; ++iteration)
         {
             const float3 cofactor0 = cross(row1, row2);
             const float3 cofactor1 = cross(row2, row0);
             const float3 cofactor2 = cross(row0, row1);
             const float determinant = dot(row0, cofactor0);
             if (abs(determinant) < 1.0e-8f)
+            {
+                rotation_valid = false;
                 break;
+            }
 
             row0 = 0.5f * (row0 + cofactor0 / determinant);
             row1 = 0.5f * (row1 + cofactor1 / determinant);
             row2 = 0.5f * (row2 + cofactor2 / determinant);
+        }
+        if (!rotation_valid)
+        {
+            row0 = float3(1.0f, 0.0f, 0.0f);
+            row1 = float3(0.0f, 1.0f, 0.0f);
+            row2 = float3(0.0f, 0.0f, 1.0f);
         }
     }
     else
@@ -126,10 +139,10 @@ void build_transforms(uint3 dispatch_id : SV_DispatchThreadID)
     g_cluster_transforms[cluster_index] = transform;
 }
 
-StructuredBuffer<uint2> g_vertex_cluster_ranges : register(t2);
-StructuredBuffer<uint> g_vertex_clusters : register(t3);
-StructuredBuffer<ClusterTransform> g_transforms : register(t4);
-RWStructuredBuffer<Particle> g_particles_out : register(u0);
+StructuredBuffer<uint2> g_vertex_cluster_ranges : register(t4);
+StructuredBuffer<uint> g_vertex_clusters : register(t5);
+StructuredBuffer<ClusterTransform> g_transforms : register(t6);
+RWStructuredBuffer<Particle> g_particles_out : register(u1);
 
 cbuffer ApplyConstants : register(b0)
 {
