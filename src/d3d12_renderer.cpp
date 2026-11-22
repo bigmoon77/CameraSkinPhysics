@@ -2081,7 +2081,7 @@ namespace csp
 
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 4);
         command_list_->ResolveQueryData(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
-            0, 5u + max_solver_iterations * 8u, timestamp_readback_.Get(), 0);
+            0, 5u + max_solver_iterations * 2u * 8u, timestamp_readback_.Get(), 0);
 
         back_buffer_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         back_buffer_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
