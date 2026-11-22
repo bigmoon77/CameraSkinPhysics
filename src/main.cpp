@@ -20,11 +20,13 @@ namespace
     constexpr wchar_t parameter_window_class_name[] = L"CameraSkinPhysicsParameters";
     constexpr int parameter_control_base = 100;
     constexpr int parameter_reset_id = 200;
+    constexpr int parameter_pause_id = 201;
     constexpr int parameter_count = 8;
     HWND parameter_sliders[parameter_count]{};
     HWND parameter_value_labels[parameter_count]{};
     HWND parameter_window = nullptr;
     HWND performance_label = nullptr;
+    HWND pause_button = nullptr;
     csp::d3d12_renderer* active_renderer = nullptr;
     bool benchmark_running = false;
 
@@ -149,8 +151,13 @@ namespace
             }
             CreateWindowExW(0, L"BUTTON", L"Reset parameters",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                16, 18 + parameter_count * 76, 384, 32, window,
+                16, 18 + parameter_count * 76, 186, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_reset_id)),
+                GetModuleHandleW(nullptr), nullptr);
+            pause_button = CreateWindowExW(0, L"BUTTON", L"Pause simulation",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                214, 18 + parameter_count * 76, 186, 32, window,
+                reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_pause_id)),
                 GetModuleHandleW(nullptr), nullptr);
             performance_label = CreateWindowExW(0, L"STATIC", L"CPU -- ms    GPU -- ms",
                 WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 76 + 40,
@@ -169,6 +176,16 @@ namespace
             if (active_renderer != nullptr)
                 active_renderer->set_simulation_parameters(csp::simulation_parameters{});
             update_parameter_controls();
+            return 0;
+        }
+        if (message == WM_COMMAND && LOWORD(wparam) == parameter_pause_id)
+        {
+            if (active_renderer != nullptr)
+            {
+                active_renderer->set_simulation_paused(!active_renderer->is_simulation_paused());
+                SetWindowTextW(pause_button, active_renderer->is_simulation_paused()
+                    ? L"Resume simulation" : L"Pause simulation");
+            }
             return 0;
         }
         if (message == WM_CLOSE)
