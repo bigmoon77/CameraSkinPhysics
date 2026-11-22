@@ -72,9 +72,9 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
         lerp(own.xyz, average, saturate(blend_strength)), own.w);
 }
 
-StructuredBuffer<Particle> g_particles_in : register(t0);
-StructuredBuffer<float4> g_final_corrections : register(t1);
-RWStructuredBuffer<Particle> g_particles_out : register(u0);
+StructuredBuffer<Particle> g_particles_in : register(t4);
+StructuredBuffer<float4> g_final_corrections : register(t5);
+RWStructuredBuffer<Particle> g_particles_out : register(u1);
 
 [numthreads(256, 1, 1)]
 void apply_corrections(uint3 dispatch_id : SV_DispatchThreadID)
