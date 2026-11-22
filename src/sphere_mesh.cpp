@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
+#include <cmath>\n#include <cstdint>\n#include <map>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -61,47 +61,150 @@ namespace csp
             });
         }
 
-        std::vector<std::array<std::uint32_t, 2>> edge_pairs;
-        edge_pairs.reserve(mesh.indices.size() / 2);
-        for (std::size_t triangle = 0; triangle < mesh.indices.size(); triangle += 3)
+        build_surface_constraints(mesh);
+        return mesh;
+    }
+}
+    void build_surface_constraints(sphere_mesh& mesh,
+        const float edge_compliance,
+        const float area_compliance,
+        const float bending_compliance)
+    {
+        if (mesh.indices.size() % 3u != 0u)
+            throw std::invalid_argument("Surface index count must be divisible by three.");
+        if (mesh.vertices.size() > static_cast<std::size_t>(UINT32_MAX))
+            throw std::invalid_argument("Surface vertex count exceeds 32-bit topology limits.");
+
+        struct edge_face
         {
-            const std::uint32_t triangle_indices[3] = {
-                mesh.indices[triangle], mesh.indices[triangle + 1], mesh.indices[triangle + 2]
+            std::uint32_t face_index;
+            std::uint32_t from;
+            std::uint32_t to;
+            std::uint32_t opposite;
+        };
+
+        using edge_key = std::array<std::uint32_t, 2>;
+        std::map<edge_key, std::vector<edge_face>> edge_faces;
+        std::vector<std::array<float, 3>> face_normals(mesh.indices.size() / 3u);
+        mesh.edges.clear();
+        mesh.edge_incidence_ranges.clear();
+        mesh.incident_corrections.clear();
+        mesh.triangle_areas.clear();
+        mesh.bending.clear();
+        mesh.topology = {};
+
+        mesh.triangle_areas.reserve(mesh.indices.size() / 3u);
+        double signed_volume = 0.0;
+        for (std::uint32_t face = 0; face < mesh.indices.size() / 3u; ++face)
+        {
+            const std::uint32_t a_index = mesh.indices[face * 3u];
+            const std::uint32_t b_index = mesh.indices[face * 3u + 1u];
+            const std::uint32_t c_index = mesh.indices[face * 3u + 2u];
+            if (a_index >= mesh.vertices.size() || b_index >= mesh.vertices.size()
+                || c_index >= mesh.vertices.size()
+                || a_index == b_index || b_index == c_index || c_index == a_index)
+                throw std::invalid_argument("Surface triangle contains invalid vertex indices.");
+
+            const vertex& a = mesh.vertices[a_index];
+            const vertex& b = mesh.vertices[b_index];
+            const vertex& c = mesh.vertices[c_index];
+            const float ab[3] = {b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]};
+            const float ac[3] = {c.position[0] - a.position[0], c.position[1] - a.position[1], c.position[2] - a.position[2]};
+            const float normal[3] = {
+                ab[1] * ac[2] - ab[2] * ac[1],
+                ab[2] * ac[0] - ab[0] * ac[2],
+                ab[0] * ac[1] - ab[1] * ac[0]
             };
+            const float twice_area = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+            if (!(twice_area > 1.0e-12f) || !std::isfinite(twice_area))
+                throw std::invalid_argument("Surface contains a degenerate rest triangle.");
+
+            face_normals[face] = {normal[0] / twice_area, normal[1] / twice_area, normal[2] / twice_area};
+            triangle_area_constraint area{};
+            area.indices[0] = a_index;
+            area.indices[1] = b_index;
+            area.indices[2] = c_index;
+            area.rest_area = 0.5f * twice_area;
+            area.compliance = area_compliance;
+            mesh.triangle_areas.push_back(area);
+
+            signed_volume += (
+                static_cast<double>(a.position[0]) * (static_cast<double>(b.position[1]) * c.position[2] - static_cast<double>(b.position[2]) * c.position[1])
+                + static_cast<double>(a.position[1]) * (static_cast<double>(b.position[2]) * c.position[0] - static_cast<double>(b.position[0]) * c.position[2])
+                + static_cast<double>(a.position[2]) * (static_cast<double>(b.position[0]) * c.position[1] - static_cast<double>(b.position[1]) * c.position[0])) / 6.0;
+
+            const std::uint32_t ids[3] = {a_index, b_index, c_index};
             for (std::uint32_t corner = 0; corner < 3; ++corner)
             {
-                std::uint32_t a = triangle_indices[corner];
-                std::uint32_t b = triangle_indices[(corner + 1) % 3];
-                if (a > b) std::swap(a, b);
-                edge_pairs.push_back({a, b});
+                const std::uint32_t from = ids[corner];
+                const std::uint32_t to = ids[(corner + 1u) % 3u];
+                const std::uint32_t opposite = ids[(corner + 2u) % 3u];
+                const edge_key key = {std::min(from, to), std::max(from, to)};
+                edge_faces[key].push_back({face, from, to, opposite});
             }
         }
 
-        std::sort(edge_pairs.begin(), edge_pairs.end());
-        edge_pairs.erase(std::unique(edge_pairs.begin(), edge_pairs.end()), edge_pairs.end());
-
-        std::vector<std::uint32_t> incidence_counts(mesh.vertices.size(), 0);
-        mesh.edges.reserve(edge_pairs.size());
-        for (const std::array<std::uint32_t, 2>& pair : edge_pairs)
+        std::vector<std::uint32_t> incidence_counts(mesh.vertices.size(), 0u);
+        mesh.edges.reserve(edge_faces.size());
+        mesh.bending.reserve(edge_faces.size());
+        for (const auto& entry : edge_faces)
         {
-            const vertex& a = mesh.vertices[pair[0]];
-            const vertex& b = mesh.vertices[pair[1]];
+            const edge_key& key = entry.first;
+            const std::vector<edge_face>& adjacent = entry.second;
+            const vertex& a = mesh.vertices[key[0]];
+            const vertex& b = mesh.vertices[key[1]];
             const float dx = a.position[0] - b.position[0];
             const float dy = a.position[1] - b.position[1];
             const float dz = a.position[2] - b.position[2];
 
             surface_edge edge{};
-            edge.indices[0] = pair[0];
-            edge.indices[1] = pair[1];
+            edge.indices[0] = key[0];
+            edge.indices[1] = key[1];
             edge.rest_length = std::sqrt(dx * dx + dy * dy + dz * dz);
-            edge.compliance = 2.0e-6f;
+            edge.compliance = edge_compliance;
             mesh.edges.push_back(edge);
-            ++incidence_counts[pair[0]];
-            ++incidence_counts[pair[1]];
+            ++incidence_counts[key[0]];
+            ++incidence_counts[key[1]];
+
+            if (adjacent.size() == 1u)
+            {
+                ++mesh.topology.boundary_edge_count;
+                continue;
+            }
+            if (adjacent.size() != 2u)
+            {
+                ++mesh.topology.non_manifold_edge_count;
+                continue;
+            }
+
+            if (adjacent[0].from != adjacent[1].to || adjacent[0].to != adjacent[1].from)
+                ++mesh.topology.orientation_conflict_count;
+
+            const std::array<float, 3>& n0 = face_normals[adjacent[0].face_index];
+            const std::array<float, 3>& n1 = face_normals[adjacent[1].face_index];
+            const float edge_length = std::max(edge.rest_length, 1.0e-12f);
+            const float edge_direction[3] = {dx / edge_length, dy / edge_length, dz / edge_length};
+            const float normal_cross[3] = {
+                n0[1] * n1[2] - n0[2] * n1[1],
+                n0[2] * n1[0] - n0[0] * n1[2],
+                n0[0] * n1[1] - n0[1] * n1[0]
+            };
+            const float sine = edge_direction[0] * normal_cross[0]
+                + edge_direction[1] * normal_cross[1] + edge_direction[2] * normal_cross[2];
+            const float cosine = std::clamp(n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2], -1.0f, 1.0f);
+
+            bending_constraint bend{};
+            bend.indices[0] = key[0];
+            bend.indices[1] = key[1];
+            bend.indices[2] = adjacent[0].opposite;
+            bend.indices[3] = adjacent[1].opposite;
+            bend.rest_angle = std::atan2(sine, cosine);
+            bend.compliance = bending_compliance;
+            mesh.bending.push_back(bend);
         }
 
         mesh.edge_incidence_ranges.resize(mesh.vertices.size());
-        std::uint32_t incidence_offset = 0;
+        std::uint32_t incidence_offset = 0u;
         for (std::size_t vertex_index = 0; vertex_index < mesh.vertices.size(); ++vertex_index)
         {
             mesh.edge_incidence_ranges[vertex_index] = {incidence_offset, incidence_counts[vertex_index]};
@@ -109,11 +212,11 @@ namespace csp
         }
 
         mesh.incident_corrections.resize(incidence_offset);
-        std::vector<std::uint32_t> write_offsets(mesh.vertices.size(), 0);
+        std::vector<std::uint32_t> write_offsets(mesh.vertices.size(), 0u);
         for (std::uint32_t edge_index = 0; edge_index < mesh.edges.size(); ++edge_index)
         {
             const surface_edge& edge = mesh.edges[edge_index];
-            for (std::uint32_t endpoint = 0; endpoint < 2; ++endpoint)
+            for (std::uint32_t endpoint = 0; endpoint < 2u; ++endpoint)
             {
                 const std::uint32_t vertex_index = edge.indices[endpoint];
                 const std::uint32_t destination =
@@ -122,6 +225,10 @@ namespace csp
             }
         }
 
-        return mesh;
+        mesh.topology.signed_rest_volume = static_cast<float>(signed_volume);
+        mesh.topology.closed_oriented = mesh.topology.boundary_edge_count == 0u
+            && mesh.topology.non_manifold_edge_count == 0u
+            && mesh.topology.orientation_conflict_count == 0u
+            && std::abs(mesh.topology.signed_rest_volume) > 1.0e-12f;
     }
-}
+
