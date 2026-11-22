@@ -109,9 +109,8 @@ The importer runs `blender.exe` in background mode. It exports the mesh as OBJ a
 `.cspanim` file containing the Armature hierarchy, up to four normalized bone influences per vertex,
 and sampled skinning matrices for every frame in the Blender scene range.
 
-A single shared Armature is supported per imported model. Meshes are read from their original mesh data
-so the runtime applies the exported skinning matrices exactly once. Non-armature modifiers are currently
-not evaluated. Vertices without valid bone groups remain rigid. The first four influences with the
+A single shared Armature is supported per imported model. The exporter temporarily disables Armature modifiers while evaluating the dependency graph, so
+non-armature modifiers are included and armature deformation is applied exactly once at runtime. Vertices without valid bone groups remain rigid. The first four influences with the
 largest weights are retained and normalized. Animation is sampled at the scene frame rate and loops
 continuously at runtime.
 
