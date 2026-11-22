@@ -1,5 +1,7 @@
 #include "obj_mesh.hpp"
 
+#include <algorithm>
+
 #include <cmath>
 #include <filesystem>
 #include <fstream>
