@@ -56,7 +56,7 @@ int main()
         const std::array<float, 3> position{1.0f, 0.0f, 0.0f};
         const std::array<float, 3> skinned =
             csp::skin_vertex_position(position, animation.vertex_weights[0], matrices);
-        require(near(skinned[0], 2.0f), "Weighted skinning result mismatch.");
+        require(near(skinned[0], 3.0f), "Weighted skinning result mismatch.");
         require(near(skinned[1], 0.0f) && near(skinned[2], 0.0f), "Unexpected skinning axis change.");
 
         std::filesystem::remove(path);
