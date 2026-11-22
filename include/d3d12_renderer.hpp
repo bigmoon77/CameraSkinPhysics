@@ -26,6 +26,7 @@ namespace csp
         float edge_compliance = 2.0e-6f;
         float area_compliance = 1.0e-7f;
         float bending_compliance = 2.0e-4f;
+        float shape_matching_strength = 0.08f;
         float max_correction = 0.008f;
         float particle_radius = 0.012f;
         float pushout = 0.006f;
