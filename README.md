@@ -42,7 +42,7 @@ The collision controls currently affect Camera Surface mode. XPBD retains its ex
 - Tetrahedral topology: 10,144 interior particles, 51,246 tetrahedra and 204,984 particle-element CSR incidence entries per sphere at the default resolution.
 - Tetrahedral XPBD: particle integration, volume and edge constraints, ping-pong multipliers, CSR correction gather and barycentric GPU skinning.
 - Camera-surface XPBD: 100,000 surface particles per sphere, edge-length, triangle-area and shared-edge hinge-distance bending constraints, ping-pong multipliers for all three constraint families, combined edge/area/bending correction storage, vertex-edge/triangle/hinge CSR gather, and direct GPU skinning.
-- Cluster shape matching: connected geodesic core patches expanded by one adjacency ring, bidirectional cluster/vertex CSR membership, per-cluster GPU covariance fitting with iterative polar rotation extraction, and weighted overlapping target blending. The runtime uses 2048-vertex geodesic core patches expanded by two adjacency rings to preserve larger-scale curvature; the per-iteration correction strength defaults to 0.25 and is adjustable from the GUI. The automatic topology partition is a generic starting point; semantic human-body regions and bone-weight-driven cluster definitions can replace or augment it later.
+- Cluster shape matching: connected geodesic core patches expanded by one adjacency ring, bidirectional cluster/vertex CSR membership, per-cluster GPU covariance fitting with iterative polar rotation extraction, and weighted overlapping target blending. The runtime uses 2048-vertex geodesic core patches expanded by two adjacency rings to preserve larger-scale curvature; the per-iteration correction strength defaults to 0.25 and is adjustable from the GUI. For imported rigged models, sampled bone poses also drive the cluster rest shape and the edge, area and hinge rest metrics each frame.
 - Generic surface topology preprocessing: triangle rest-area constraints, shared-edge hinge rest-distance constraints, boundary/non-manifold/orientation diagnostics and signed rest volume are generated from arbitrary indexed triangle meshes. Edge records are sorted contiguously to avoid per-edge heap allocations at high mesh counts. Triangle-area constraints have vertex-to-triangle CSR adjacency (`triangle_incidence_ranges` / `incident_triangle_corners`). Bending hinges use the distance between the two opposite vertices as a stable rest metric and have vertex-to-hinge-corner CSR adjacency (`bending_incidence_ranges` / `incident_bending_corners`). The area XPBD pass computes one correction per triangle corner. The bending XPBD pass constrains the distance between the two opposite vertices of each shared-edge hinge and writes four corner slots (the shared-edge endpoint slots are zero). The combined vertex gather accumulates edge, area and bending corrections without floating-point atomics.
 - Two 1024 × 1024 opposing-body normal/depth capture targets and the shared camera-space particle contact pass.
 - GPU timestamp queries. CSV files are written separately:
@@ -105,10 +105,22 @@ The application begins in F1 mode. Press F2 to switch to the camera-surface simu
 ## Blender model import
 
 The parameter window provides **Blender モデルを読み込む** and **シミュレーションをやり直す** controls.
-The importer runs `blender.exe` in background mode, evaluates scene mesh objects (including modifiers),
-triangulates their evaluated geometry, and exports a temporary OBJ for the runtime loader.
-Add Blender's executable directory to `PATH` so `blender.exe` can be found.
+The importer runs `blender.exe` in background mode. It exports the mesh as OBJ and writes a companion
+`.cspanim` file containing the Armature hierarchy, up to four normalized bone influences per vertex,
+and sampled skinning matrices for every frame in the Blender scene range.
 
-Imported OBJ geometry is centered and uniformly scaled so its largest bounding-box extent is 2 units.
-The imported model runs with the camera-surface XPBD solver (F2); the tetrahedral solver (F1)
-remains available for the built-in sphere only. The restart control relaunches the application with the currently imported mesh, restoring its initial particle positions and velocities. It also restores simulation parameters to their defaults.
+A single shared Armature is supported per imported model. Meshes are read from their original mesh data
+so the runtime applies the exported skinning matrices exactly once. Non-armature modifiers are currently
+not evaluated. Vertices without valid bone groups remain rigid. The first four influences with the
+largest weights are retained and normalized. Animation is sampled at the scene frame rate and loops
+continuously at runtime.
+
+The renderer updates the surface rest positions and edge-length, triangle-area and hinge-distance rest
+metrics from the current bone pose before each F2 simulation step. Cluster shape matching therefore
+follows the animated pose while the XPBD constraints and camera-space contact allow secondary motion.
+The pose sampling and rest-metric refresh currently run on the CPU; the XPBD solver remains on the GPU.
+
+Imported models run with the camera-surface XPBD solver (F2); the tetrahedral solver (F1) remains
+available for the built-in sphere only. The restart control relaunches the application with the currently
+imported mesh and animation, restoring the initial simulation state and animation clock. It also restores
+simulation parameters to their defaults.
