@@ -21,8 +21,12 @@ cbuffer ShapeConstants : register(b0)
 {
     uint element_count;
     float strength;
+    float bone_follow_strength;
     float max_correction;
     float delta_time;
+    float bone_center_x;
+    float padding0;
+    float padding1;
 };
 
 [numthreads(64, 1, 1)]
@@ -153,26 +157,28 @@ void apply_matching(uint3 dispatch_id : SV_DispatchThreadID)
 
     Particle particle = g_particles[vertex_index];
     const uint2 range = g_vertex_cluster_ranges[vertex_index];
-    if (range.y == 0u || strength <= 0.0f)
+    if (range.y == 0u || (strength <= 0.0f && bone_follow_strength <= 0.0f))
     {
         g_particles_out[vertex_index] = particle;
         return;
     }
 
     const float3 rest_position = g_rest_positions[vertex_index].xyz;
-    float3 target = 0.0f;
+    float3 shape_target = 0.0f;
     for (uint offset = 0; offset < range.y; ++offset)
     {
         const uint cluster_index = g_vertex_clusters[range.x + offset];
         const ClusterTransform transform = g_transforms[cluster_index];
-        target += float3(
+        shape_target += float3(
             dot(transform.row0.xyz, rest_position) + transform.row0.w,
             dot(transform.row1.xyz, rest_position) + transform.row1.w,
             dot(transform.row2.xyz, rest_position) + transform.row2.w);
     }
-    target /= (float)range.y;
+    shape_target /= (float)range.y;
 
-    float3 correction = (target - particle.position.xyz) * saturate(strength);
+    const float3 bone_target = rest_position + float3(bone_center_x, 0.0f, 0.0f);
+    float3 correction = (shape_target - particle.position.xyz) * saturate(strength);
+    correction += (bone_target - particle.position.xyz) * saturate(bone_follow_strength);
     const float correction_length = length(correction);
     if (correction_length > max_correction && correction_length > 1.0e-8f)
         correction *= max_correction / correction_length;
