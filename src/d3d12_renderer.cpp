@@ -763,7 +763,7 @@ namespace csp
             || surface_mesh.triangle_incidence_ranges.size() != surface_mesh.vertices.size()
             || surface_mesh.incident_triangle_corners.size() != surface_mesh.triangle_areas.size() * 3
             || surface_mesh.bending_incidence_ranges.size() != surface_mesh.vertices.size()
-            || surface_mesh.incident_bending_corners.size() != surface_mesh.bending.size() * 4)
+            || surface_mesh.incident_bending_corners.size() != surface_mesh.bending.size() * 2)
             return false;
 
         const auto upload_vector = [this](const auto& values) -> Microsoft::WRL::ComPtr<ID3D12Resource>
@@ -934,7 +934,7 @@ namespace csp
 
             const UINT64 edge_correction_bytes =
                 static_cast<UINT64>(compute_->edge_count + compute_->triangle_count * 3u
-                    + compute_->bending_count * 4u) * sizeof(DirectX::XMFLOAT3);
+                    + compute_->bending_count * 2u) * sizeof(DirectX::XMFLOAT3);
             const UINT64 edge_lambda_bytes = static_cast<UINT64>(compute_->edge_count) * sizeof(float);
             const UINT64 area_lambda_bytes = static_cast<UINT64>(compute_->triangle_count) * sizeof(float);
             const UINT64 bending_lambda_bytes = static_cast<UINT64>(compute_->bending_count) * sizeof(float);
@@ -1528,7 +1528,7 @@ namespace csp
                     write_buffer_srv(bending_table, 2, body.bending_lambdas[bending_lambda_read].Get(),
                         compute_->bending_count, sizeof(float));
                     write_buffer_uav(bending_table, 0, body.edge_corrections.Get(),
-                        compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 4u,
+                        compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 2u,
                         sizeof(DirectX::XMFLOAT3));
                     write_buffer_uav(bending_table, 1, body.bending_lambdas[bending_lambda_write].Get(),
                         compute_->bending_count, sizeof(float));
@@ -1583,7 +1583,7 @@ namespace csp
                 write_buffer_srv(gather_table, 6, compute_->surface_bending_ranges.Get(),
                     compute_->vertex_count, sizeof(mesh_uint2));
                 write_buffer_srv(gather_table, 7, compute_->incident_surface_bending.Get(),
-                    std::max(1u, compute_->bending_count * 4u), sizeof(std::uint32_t));
+                    std::max(1u, compute_->bending_count * 2u), sizeof(std::uint32_t));
                 write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
 
