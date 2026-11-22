@@ -210,8 +210,9 @@ namespace csp
             float velocity_friction;
             float restitution;
             float contact_band;
+            std::uint32_t smooth_surface_contacts;
         };
-        static_assert(sizeof(camera_collision_constants) == 160);
+        static_assert(sizeof(camera_collision_constants) == 164);
 
         void transition_barrier(ID3D12GraphicsCommandList* command_list,
             ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
@@ -690,7 +691,7 @@ namespace csp
         parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
         parameters[0].Constants.ShaderRegister = 0;
         parameters[0].Constants.RegisterSpace = 0;
-        parameters[0].Constants.Num32BitValues = 40;
+        parameters[0].Constants.Num32BitValues = 41;
         parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
         parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         parameters[1].DescriptorTable.NumDescriptorRanges = 2;
@@ -1876,6 +1877,7 @@ namespace csp
                 collision_constants.velocity_friction = use_camera_surface ? simulation_parameters_.velocity_friction : 0.12f;
                 collision_constants.restitution = use_camera_surface ? simulation_parameters_.restitution : 0.18f;
                 collision_constants.contact_band = use_camera_surface ? simulation_parameters_.contact_band : 0.16f;
+                collision_constants.smooth_surface_contacts = use_camera_surface ? 1u : 0u;
 
                 ID3D12Resource* input_particles = nullptr;
                 ID3D12Resource* output_particles = nullptr;
@@ -1903,10 +1905,19 @@ namespace csp
                 write_texture_srv(table, 1, capture_normal_[body_index].Get(), DXGI_FORMAT_R16G16B16A16_FLOAT);
                 write_buffer_srv(table, 2, input_particles,
                     collision_constants.particle_count, sizeof(simulation_particle));
+                if (use_camera_surface)
+                {
+                    write_buffer_srv(table, 3, compute_->surface_edge_ranges.Get(),
+                        compute_->vertex_count, sizeof(mesh_uint2));
+                    write_buffer_srv(table, 4, compute_->incident_surface_corrections.Get(),
+                        compute_->edge_count * 2u, sizeof(std::uint32_t));
+                    write_buffer_srv(table, 5, compute_->surface_edges.Get(),
+                        compute_->edge_count, sizeof(surface_edge));
+                }
                 write_buffer_uav(table, 0, output_particles,
                     collision_constants.particle_count, sizeof(simulation_particle));
                 dispatch_compute(compute_->camera_collision_pipeline.Get(), table,
-                    &collision_constants, 40,
+                    &collision_constants, 41,
                     (collision_constants.particle_count + 255u) / 256u);
                 transition_resource(output_particles,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
