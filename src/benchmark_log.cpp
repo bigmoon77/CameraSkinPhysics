@@ -16,7 +16,9 @@ namespace csp
         stream_ << "frame,cpu_frame_ms,cpu_fps,gpu_simulation_ms,camera_edge_solve_ms,"
             << "camera_gather_ms,gpu_depth_capture_ms,"
             << "gpu_collision_ms,gpu_render_ms,gpu_total_ms,gpu_fps,particle_count,"
-            << "tetrahedron_count,solver_buffer_bytes,resident_simulation_buffer_bytes\n";
+            << "tetrahedron_count,solver_buffer_bytes,resident_simulation_buffer_bytes,"
+            << "solver_iterations,edge_relaxation,max_correction,particle_radius,pushout,"
+            << "velocity_friction,restitution,contact_band\\n";
     }
 
     benchmark_log::~benchmark_log()
