@@ -23,6 +23,7 @@ cbuffer AreaConstants : register(b0)
     uint edge_count;
     float delta_time;
     float relaxation;
+    float compliance;
 };
 
 [numthreads(256, 1, 1)]
@@ -58,7 +59,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
 
     const float current_area = 0.5f * twice_area;
     const float constraint = current_area - area.rest_area;
-    const float alpha = area.compliance / max(delta_time * delta_time, 1.0e-8f);
+    const float alpha = compliance / max(delta_time * delta_time, 1.0e-8f);
     const float denominator = dot(gradient_a, gradient_a)
         + dot(gradient_b, gradient_b) + dot(gradient_c, gradient_c) + alpha;
     const float delta_lambda = (-constraint - alpha * old_lambda) / max(denominator, 1.0e-9f);
