@@ -83,6 +83,8 @@ int main()
         "CSV header must include selected solver buffer size");
     check(header.find("resident_simulation_buffer_bytes") != std::string::npos,
         "CSV header must include resident simulation buffer size");
+    check(header.find("edge_relaxation") != std::string::npos,
+        "CSV header must include runtime solver parameters");
     check(header.find("stale") == std::string::npos, "CSV must discard previous run data");
     check(extra.empty(), "CSV must contain exactly one data row");
 
