@@ -253,8 +253,8 @@ namespace
         if (SearchPathW(nullptr, L"blender.exe", nullptr, MAX_PATH, blender_path, nullptr) == 0)
         {
             MessageBoxW(parameter_window,
-                L"blender.exe が PATH に見つかりません。blender.exe があるフォルダーを PATH に追加してください。",
-                L"モデル読み込み", MB_ICONERROR | MB_OK);
+                L"blender.exe \u304c PATH \u306b\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002blender.exe \u304c\u3042\u308b\u30d5\u30a9\u30eb\u30c0\u30fc\u3092 PATH \u306b\u8ffd\u52a0\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+                L"\u30e2\u30c7\u30eb\u8aad\u307f\u8fbc\u307f", MB_ICONERROR | MB_OK);
             return false;
         }
 
