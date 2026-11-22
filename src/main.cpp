@@ -21,7 +21,7 @@ namespace
     constexpr int parameter_control_base = 100;
     constexpr int parameter_reset_id = 200;
     constexpr int parameter_pause_id = 201;
-    constexpr int parameter_count = 8;
+    constexpr int parameter_count = 11;
     HWND parameter_sliders[parameter_count]{};
     HWND parameter_value_labels[parameter_count]{};
     HWND parameter_window = nullptr;
@@ -36,6 +36,7 @@ namespace
         float minimum;
         float maximum;
         bool integer;
+        bool logarithmic = false;
     };
 
     constexpr parameter_description parameter_descriptions[parameter_count] = {
@@ -46,7 +47,10 @@ namespace
         {L"\u63a5\u89e6\u6642\u306e\u62bc\u3057\u51fa\u3057\u91cf", 0.0f, 0.03f, false},
         {L"\u63a5\u89e6\u6642\u306e\u6469\u64e6", 0.0f, 1.0f, false},
         {L"\u53cd\u767a\u4fc2\u6570", 0.0f, 1.0f, false},
-        {L"\u63a5\u89e6\u5224\u5b9a\u306e\u5e45", 0.005f, 0.5f, false}
+        {L"\u63a5\u89e6\u5224\u5b9a\u306e\u5e45", 0.005f, 0.5f, false},
+        {L"\u30a8\u30c3\u30b8\u9577\u306e\u525b\u6027", 1.0e-9f, 1.0e-2f, false, true},
+        {L"\u9762\u7a4d\u306e\u525b\u6027", 1.0e-9f, 1.0e-2f, false, true},
+        {L"\u66f2\u3052\u306e\u525b\u6027", 1.0e-9f, 1.0e-2f, false, true}
     };
 
     float get_parameter_value(const csp::simulation_parameters& parameters, int index)
@@ -60,6 +64,9 @@ namespace
         case 4: return parameters.pushout;
         case 5: return parameters.velocity_friction;
         case 6: return parameters.restitution;
+        case 8: return parameters.edge_compliance;
+        case 9: return parameters.area_compliance;
+        case 10: return parameters.bending_compliance;
         default: return parameters.contact_band;
         }
     }
@@ -75,6 +82,9 @@ namespace
         case 4: parameters.pushout = value; break;
         case 5: parameters.velocity_friction = value; break;
         case 6: parameters.restitution = value; break;
+        case 8: parameters.edge_compliance = value; break;
+        case 9: parameters.area_compliance = value; break;
+        case 10: parameters.bending_compliance = value; break;
         default: parameters.contact_band = value; break;
         }
     }
@@ -87,11 +97,17 @@ namespace
         {
             const float value = get_parameter_value(parameters, index);
             const parameter_description& description = parameter_descriptions[index];
-            const int position = static_cast<int>(std::lround(
-                (value - description.minimum) / (description.maximum - description.minimum) * 1000.0f));
+            const float normalized = description.logarithmic
+                ? (std::log(value) - std::log(description.minimum))
+                    / (std::log(description.maximum) - std::log(description.minimum))
+                : (value - description.minimum) / (description.maximum - description.minimum);
+            const int position = static_cast<int>(std::lround(normalized * 1000.0f));
             SendMessageW(parameter_sliders[index], TBM_SETPOS, TRUE, position);
             std::wostringstream text;
-            text << std::fixed << std::setprecision(index == 0 ? 0 : 4) << value;
+            if (description.logarithmic)
+                text << std::scientific << std::setprecision(2) << value;
+            else
+                text << std::fixed << std::setprecision(index == 0 ? 0 : 4) << value;
             SetWindowTextW(parameter_value_labels[index], text.str().c_str());
         }
     }
@@ -118,9 +134,12 @@ namespace
         const parameter_description& description = parameter_descriptions[index];
         const int position = static_cast<int>(SendMessageW(slider, TBM_GETPOS, 0, 0));
         const float normalized = static_cast<float>(position) / 1000.0f;
-        const float value = description.integer
-            ? std::round(description.minimum + normalized * (description.maximum - description.minimum))
-            : description.minimum + normalized * (description.maximum - description.minimum);
+        const float value = description.logarithmic
+            ? std::exp(std::log(description.minimum)
+                + normalized * (std::log(description.maximum) - std::log(description.minimum)))
+            : (description.integer
+                ? std::round(description.minimum + normalized * (description.maximum - description.minimum))
+                : description.minimum + normalized * (description.maximum - description.minimum));
         csp::simulation_parameters parameters = active_renderer->get_simulation_parameters();
         set_parameter_value(parameters, index, value);
         active_renderer->set_simulation_parameters(parameters);
