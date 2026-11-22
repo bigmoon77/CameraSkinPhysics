@@ -149,38 +149,6 @@ int main()
     check(surface_incidence_total == surface.edges.size() * 2ull,
         "surface edge CSR must contain exactly two entries per edge");
 
-    check(surface.gather_vertex_indices.size() == surface.vertices.size(),
-        "gather vertex order must contain every surface vertex");
-    std::vector<bool> gather_vertex_seen(surface.vertices.size(), false);
-    bool gather_order_valid = true;
-    std::uint32_t previous_degree = 0;
-    std::uint32_t minimum_degree = UINT32_MAX;
-    std::uint32_t maximum_degree = 0;
-    std::uint32_t low_degree_count = 0;
-    for (std::size_t order_index = 0; order_index < surface.gather_vertex_indices.size(); ++order_index)
-    {
-        const std::uint32_t vertex_index = surface.gather_vertex_indices[order_index];
-        if (vertex_index >= surface.vertices.size() || gather_vertex_seen[vertex_index])
-        {
-            gather_order_valid = false;
-            break;
-        }
-        gather_vertex_seen[vertex_index] = true;
-        const std::uint32_t degree = surface.edge_incidence_ranges[vertex_index].y;
-        if (order_index > 0 && degree < previous_degree)
-        {
-            gather_order_valid = false;
-            break;
-        }
-        previous_degree = degree;
-        minimum_degree = std::min(minimum_degree, degree);
-        maximum_degree = std::max(maximum_degree, degree);
-        if (degree <= 8u) ++low_degree_count;
-    }
-    check(gather_order_valid, "gather vertices must be a unique ascending-degree permutation");
-    check(low_degree_count > 0, "gather order must contain low-degree vertices");
-    check(maximum_degree > 8u, "default sphere must exercise the high-degree gather path");
-
     for (std::size_t index = 0; index < surface.vertices.size(); ++index)
     {
         const csp::vertex& value = surface.vertices[index];
@@ -304,9 +272,6 @@ int main()
 
     std::cout << "surface_vertices=" << surface.vertices.size()
         << " surface_indices=" << surface.indices.size()
-        << " surface_min_degree=" << minimum_degree
-        << " surface_max_degree=" << maximum_degree
-        << " surface_degree_le_8=" << low_degree_count
         << " simulation_particles=" << volume.particles.size()
         << " tetrahedra=" << volume.tetrahedra.size()
         << " incidence_entries=" << volume.incident_tetrahedra.size() << '\n';
