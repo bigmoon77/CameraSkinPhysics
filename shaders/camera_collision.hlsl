@@ -80,6 +80,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float3 raw_correction = evaluate_contact_correction(particle, contact_normal, has_contact);
     if (smooth_surface_contacts != 0u)
         g_contact_corrections[index] = float4(raw_correction, has_contact ? 1.0f : 0.0f);
+    particle.position.xyz += raw_correction;
     if (has_contact)
     {
         const float normal_velocity = dot(particle.velocity.xyz, contact_normal);
