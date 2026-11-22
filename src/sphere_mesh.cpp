@@ -2,8 +2,7 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>\n#include <cstdint>\n#include <map>
-#include <stdexcept>
+#include <cmath>\n#include <cstdint>\n#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -83,8 +82,15 @@ namespace csp
             std::uint32_t opposite;
         };
 
+        struct edge_record
+        {
+            std::array<std::uint32_t, 2> key;
+            edge_face face;
+        };
+
         using edge_key = std::array<std::uint32_t, 2>;
-        std::map<edge_key, std::vector<edge_face>> edge_faces;
+        std::vector<edge_record> edge_records;
+        edge_records.reserve(mesh.indices.size());
         std::vector<std::array<float, 3>> face_normals(mesh.indices.size() / 3u);
         mesh.edges.clear();
         mesh.edge_incidence_ranges.clear();
@@ -140,17 +146,29 @@ namespace csp
                 const std::uint32_t to = ids[(corner + 1u) % 3u];
                 const std::uint32_t opposite = ids[(corner + 2u) % 3u];
                 const edge_key key = {std::min(from, to), std::max(from, to)};
-                edge_faces[key].push_back({face, from, to, opposite});
+                edge_records.push_back({key, {face, from, to, opposite}});
             }
         }
 
+        std::sort(edge_records.begin(), edge_records.end(),
+            [](const edge_record& a, const edge_record& b)
+            {
+                if (a.key != b.key) return a.key < b.key;
+                return a.face.face_index < b.face.face_index;
+            });
+
         std::vector<std::uint32_t> incidence_counts(mesh.vertices.size(), 0u);
-        mesh.edges.reserve(edge_faces.size());
-        mesh.bending.reserve(edge_faces.size());
-        for (const auto& entry : edge_faces)
+        mesh.edges.reserve(edge_records.size() / 2u + 1u);
+        mesh.bending.reserve(edge_records.size() / 2u + 1u);
+        for (std::size_t record_begin = 0; record_begin < edge_records.size();)
         {
-            const edge_key& key = entry.first;
-            const std::vector<edge_face>& adjacent = entry.second;
+            std::size_t record_end = record_begin + 1u;
+            while (record_end < edge_records.size()
+                && edge_records[record_end].key == edge_records[record_begin].key)
+                ++record_end;
+
+            const edge_key& key = edge_records[record_begin].key;
+            const std::size_t adjacent_count = record_end - record_begin;
             const vertex& a = mesh.vertices[key[0]];
             const vertex& b = mesh.vertices[key[1]];
             const float dx = a.position[0] - b.position[0];
@@ -166,22 +184,26 @@ namespace csp
             ++incidence_counts[key[0]];
             ++incidence_counts[key[1]];
 
-            if (adjacent.size() == 1u)
+            if (adjacent_count == 1u)
             {
                 ++mesh.topology.boundary_edge_count;
+                record_begin = record_end;
                 continue;
             }
-            if (adjacent.size() != 2u)
+            if (adjacent_count != 2u)
             {
                 ++mesh.topology.non_manifold_edge_count;
+                record_begin = record_end;
                 continue;
             }
 
-            if (adjacent[0].from != adjacent[1].to || adjacent[0].to != adjacent[1].from)
+            const edge_face& face0 = edge_records[record_begin].face;
+            const edge_face& face1 = edge_records[record_begin + 1u].face;
+            if (face0.from != face1.to || face0.to != face1.from)
                 ++mesh.topology.orientation_conflict_count;
 
-            const std::array<float, 3>& n0 = face_normals[adjacent[0].face_index];
-            const std::array<float, 3>& n1 = face_normals[adjacent[1].face_index];
+            const std::array<float, 3>& n0 = face_normals[face0.face_index];
+            const std::array<float, 3>& n1 = face_normals[face1.face_index];
             const float edge_length = std::max(edge.rest_length, 1.0e-12f);
             const float edge_direction[3] = {dx / edge_length, dy / edge_length, dz / edge_length};
             const float normal_cross[3] = {
@@ -196,11 +218,12 @@ namespace csp
             bending_constraint bend{};
             bend.indices[0] = key[0];
             bend.indices[1] = key[1];
-            bend.indices[2] = adjacent[0].opposite;
-            bend.indices[3] = adjacent[1].opposite;
+            bend.indices[2] = face0.opposite;
+            bend.indices[3] = face1.opposite;
             bend.rest_angle = std::atan2(sine, cosine);
             bend.compliance = bending_compliance;
             mesh.bending.push_back(bend);
+            record_begin = record_end;
         }
 
         mesh.edge_incidence_ranges.resize(mesh.vertices.size());
