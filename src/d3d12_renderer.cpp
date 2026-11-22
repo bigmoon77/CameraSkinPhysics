@@ -1682,7 +1682,8 @@ namespace csp
             simulation_parameters_.solver_iterations, simulation_parameters_.edge_relaxation,
             simulation_parameters_.max_correction, simulation_parameters_.particle_radius,
             simulation_parameters_.pushout, simulation_parameters_.velocity_friction,
-            simulation_parameters_.restitution, simulation_parameters_.contact_band);
+            simulation_parameters_.restitution, simulation_parameters_.contact_band,
+            simulation_parameters_.shape_matching_strength);
 
         const D3D12_RANGE written_range{0, 0};
         timestamp_readback_->Unmap(0, &written_range);
