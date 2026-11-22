@@ -1447,7 +1447,8 @@ namespace csp
                     compute_->vertex_count, simulation_parameters_.max_correction,
                     clamped_delta_time, compute_->edge_count, compute_->triangle_count, {0u, 0u, 0u}
                 };
-                const std::uint32_t gather_query = 21u + camera_dispatch_index * 2u;
+                const std::uint32_t gather_query = 5u + max_solver_iterations * 4u
+                    + camera_dispatch_index * 2u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, gather_query);
                 dispatch_compute(compute_->camera_surface_gather_pipeline.Get(), gather_table,
                     &gather_values, 5, particle_groups);
