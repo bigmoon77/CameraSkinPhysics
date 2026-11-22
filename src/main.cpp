@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include <commdlg.h>
+#include <shellapi.h>
 
 namespace
 {
@@ -500,17 +501,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         int argument_count = 0;
         LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argument_count);
         std::filesystem::path startup_obj_path;
-        for (int argument = 1; argument + 1 < argument_count; ++argument)
-            if (std::wstring(arguments[argument]) == L"--obj") startup_obj_path = arguments[argument + 1];
-        if (arguments != nullptr) LocalFree(arguments);
+        if (arguments != nullptr)
+        {
+            for (int argument = 1; argument + 1 < argument_count; ++argument)
+                if (std::wstring(arguments[argument]) == L"--obj") startup_obj_path = arguments[argument + 1];
+            LocalFree(arguments);
+        }
         custom_model_loaded = !startup_obj_path.empty();
         active_obj_path = startup_obj_path;
         const csp::sphere_mesh surface_mesh = custom_model_loaded
             ? csp::load_obj_mesh(startup_obj_path) : csp::make_sphere_mesh();
-        if (surface_mesh.vertices.size() != 100000 || surface_mesh.indices.size() != 599988
+        if (!custom_model_loaded && (surface_mesh.vertices.size() != 100000 || surface_mesh.indices.size() != 599988
             || surface_mesh.edges.size() != 299994
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
-            || surface_mesh.incident_corrections.size() != 599988)
+            || surface_mesh.incident_corrections.size() != 599988))
         {
             MessageBoxW(window, L"\u7403\u4f53\u8868\u9762\u306e\u30c8\u30dd\u30ed\u30b8\u30fc\u691c\u8a3c\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002", L"CameraSkinPhysics",
                 MB_ICONERROR | MB_OK);
@@ -533,6 +537,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
             return -1;
         }
 
+        if (custom_model_loaded) renderer.set_solver_mode(csp::solver_mode::camera_surface);
         active_renderer = &renderer;
         update_window_title(window);
         parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
@@ -545,7 +550,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         ShowWindow(parameter_window, SW_SHOW);
         ShowWindow(window, show_command);
 
-        const std::uint32_t benchmark_frame_count = parse_benchmark_frame_count(command_line);
+        const std::uint32_t benchmark_frame_count = custom_model_loaded ? 0u : parse_benchmark_frame_count(command_line);
         if (benchmark_frame_count > 0)
         {
             benchmark_running = true;
