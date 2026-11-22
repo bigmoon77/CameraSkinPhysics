@@ -1517,6 +1517,7 @@ namespace csp
         command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         command_list_->IASetIndexBuffer(&index_buffer_view_);
 
+        using namespace DirectX;
         const XMMATRIX view = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, -6.0f, 1.0f),
             XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
         const XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4,
