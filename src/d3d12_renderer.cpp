@@ -248,6 +248,8 @@ namespace csp
         {
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> particles;
             Microsoft::WRL::ComPtr<ID3D12Resource> edge_corrections;
+            std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> contact_corrections;
+            std::uint32_t contact_correction_read = 0;
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> edge_lambdas;
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> area_lambdas;
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> bending_lambdas;
@@ -314,6 +316,8 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12PipelineState> gather_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> skin_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_collision_pipeline;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_contact_smooth_pipeline;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_contact_apply_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_edge_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_area_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_bending_pipeline;
@@ -728,6 +732,8 @@ namespace csp
             && create_pipeline(L"xpbd_gather.dxil", compute_->gather_pipeline)
             && create_pipeline(L"skin_vertices.dxil", compute_->skin_pipeline)
             && create_pipeline(L"camera_collision.dxil", compute_->camera_collision_pipeline)
+            && create_pipeline(L"camera_contact_smooth.dxil", compute_->camera_contact_smooth_pipeline)
+            && create_pipeline(L"camera_contact_apply.dxil", compute_->camera_contact_apply_pipeline)
             && create_pipeline(L"camera_surface_edges.dxil", compute_->camera_surface_edge_pipeline)
             && create_pipeline(L"camera_surface_area.dxil", compute_->camera_surface_area_pipeline)
             && create_pipeline(L"camera_surface_bending.dxil", compute_->camera_surface_bending_pipeline)
@@ -939,6 +945,16 @@ namespace csp
             camera_body.edge_corrections = create_buffer(device_.Get(), edge_correction_bytes,
                 D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            const UINT64 contact_correction_bytes =
+                static_cast<UINT64>(compute_->vertex_count) * sizeof(DirectX::XMFLOAT4);
+            for (std::uint32_t buffer_index = 0; buffer_index < 2; ++buffer_index)
+            {
+                camera_body.contact_corrections[buffer_index] = create_buffer(device_.Get(),
+                    contact_correction_bytes, D3D12_HEAP_TYPE_DEFAULT,
+                    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                if (!camera_body.contact_corrections[buffer_index]) return false;
+            }
             for (std::uint32_t buffer_index = 0; buffer_index < 2; ++buffer_index)
             {
                 camera_body.edge_lambdas[buffer_index] = create_buffer(device_.Get(), edge_lambda_bytes,
@@ -1023,6 +1039,8 @@ namespace csp
             compute_->camera_surface_buffer_bytes += resource_bytes(body.particles[0].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.particles[1].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_corrections.Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.contact_corrections[0].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.contact_corrections[1].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_lambdas[0].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_lambdas[1].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.area_lambdas[0].Get());
