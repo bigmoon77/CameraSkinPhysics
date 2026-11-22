@@ -73,8 +73,8 @@ int main()
     std::getline(input, row);
     std::getline(input, extra);
     check(header.find("cpu_fps") != std::string::npos, "CSV header must include CPU FPS");
-    check(header.find("camera_edge_solve_ms") != std::string::npos,
-        "CSV header must include camera edge solve time");
+    check(header.find("camera_constraint_solve_ms") != std::string::npos,
+        "CSV header must include camera constraint solve time");
     check(header.find("camera_gather_ms") != std::string::npos,
         "CSV header must include camera gather time");
     check(header.find("gpu_total_ms") != std::string::npos, "CSV header must include total GPU time");
@@ -94,7 +94,7 @@ int main()
     check(std::abs(parse_number(columns, 2) - 100.0) < 1.0e-9,
         "CPU FPS must be derived from CPU frame time");
     check(std::abs(parse_number(columns, 4) - 0.25) < 1.0e-9,
-        "camera edge solve time must be recorded");
+        "camera constraint solve time must be recorded");
     check(std::abs(parse_number(columns, 5) - 0.5) < 1.0e-9,
         "camera gather time must be recorded");
     check(std::abs(parse_number(columns, 9) - 10.0) < 1.0e-9,
