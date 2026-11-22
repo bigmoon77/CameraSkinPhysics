@@ -71,6 +71,23 @@ int main()
             surface_constraints_valid = false;
             break;
         }
+
+        const csp::vertex& a = surface.vertices[area.indices[0]];
+        const csp::vertex& b = surface.vertices[area.indices[1]];
+        const csp::vertex& c = surface.vertices[area.indices[2]];
+        const float ab[3] = {b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]};
+        const float ac[3] = {c.position[0] - a.position[0], c.position[1] - a.position[1], c.position[2] - a.position[2]};
+        const float cross[3] = {
+            ab[1] * ac[2] - ab[2] * ac[1],
+            ab[2] * ac[0] - ab[0] * ac[2],
+            ab[0] * ac[1] - ab[1] * ac[0]
+        };
+        const float expected_area = 0.5f * std::sqrt(dot3(cross, cross));
+        if (std::abs(area.rest_area - expected_area) > std::max(1.0e-7f, expected_area * 1.0e-5f))
+        {
+            surface_constraints_valid = false;
+            break;
+        }
     }
     for (const csp::bending_constraint& bend : surface.bending)
     {
