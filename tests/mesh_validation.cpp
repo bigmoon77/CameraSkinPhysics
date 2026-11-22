@@ -1,6 +1,7 @@
 #include "sphere_mesh.hpp"
 #include "tetrahedral_mesh.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
