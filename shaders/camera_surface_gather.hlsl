@@ -5,9 +5,13 @@ struct Particle
 };
 
 StructuredBuffer<Particle> g_particles_in : register(t0);
-StructuredBuffer<uint2> g_gather_ranges : register(t1);
-StructuredBuffer<uint> g_gather_incidents : register(t2);
+StructuredBuffer<uint2> g_incidence_ranges : register(t1);
+StructuredBuffer<uint> g_incident_corrections : register(t2);
 StructuredBuffer<float3> g_surface_corrections : register(t3);
+StructuredBuffer<uint2> g_triangle_incidence_ranges : register(t4);
+StructuredBuffer<uint> g_incident_triangle_corners : register(t5);
+StructuredBuffer<uint2> g_bending_incidence_ranges : register(t6);
+StructuredBuffer<uint> g_incident_bending_corners : register(t7);
 RWStructuredBuffer<Particle> g_particles_out : register(u0);
 
 cbuffer GatherConstants : register(b0)
@@ -26,20 +30,36 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     if (particle_index >= particle_count) return;
 
     Particle particle = g_particles_in[particle_index];
-    const uint2 range = g_gather_ranges[particle_index];
+    const uint2 edge_range = g_incidence_ranges[particle_index];
     float3 correction = 0.0f;
-    for (uint offset = 0; offset < range.y; ++offset)
+    for (uint offset = 0; offset < edge_range.y; ++offset)
     {
-        const uint encoded = g_gather_incidents[range.x + offset];
-        const uint correction_index = encoded & 0x7fffffffu;
-        const float sign = (encoded & 0x80000000u) != 0u ? -1.0f : 1.0f;
-        correction += g_surface_corrections[correction_index] * sign;
+        const uint encoded = g_incident_corrections[edge_range.x + offset];
+        const uint edge_index = encoded >> 1u;
+        const float endpoint_sign = (encoded & 1u) != 0u ? -1.0f : 1.0f;
+        correction += g_surface_corrections[edge_index] * endpoint_sign;
     }
 
-    const float correction_length_squared = dot(correction, correction);
-    const float max_correction_squared = max_correction * max_correction;
-    if (correction_length_squared > max_correction_squared)
-        correction *= max_correction * rsqrt(correction_length_squared);
+    const uint2 triangle_range = g_triangle_incidence_ranges[particle_index];
+    for (uint offset = 0; offset < triangle_range.y; ++offset)
+    {
+        const uint triangle_corner = g_incident_triangle_corners[triangle_range.x + offset];
+        correction += g_surface_corrections[edge_count + triangle_corner];
+    }
+
+    const uint2 bending_range = g_bending_incidence_ranges[particle_index];
+    for (uint offset = 0; offset < bending_range.y; ++offset)
+    {
+        const uint hinge_corner = g_incident_bending_corners[bending_range.x + offset];
+        const uint hinge_index = hinge_corner >> 2u;
+        const uint corner_index = hinge_corner & 3u;
+        const uint correction_index = edge_count + triangle_count * 3u + hinge_index * 4u + corner_index;
+        correction += g_surface_corrections[correction_index];
+    }
+
+    const float correction_length = length(correction);
+    if (correction_length > max_correction)
+        correction *= max_correction / correction_length;
 
     particle.position.xyz += correction;
     particle.velocity.xyz += correction / max(delta_time, 1.0e-6f);
