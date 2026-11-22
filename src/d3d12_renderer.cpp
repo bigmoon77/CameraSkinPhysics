@@ -194,11 +194,13 @@ namespace csp
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> particles;
             Microsoft::WRL::ComPtr<ID3D12Resource> edge_corrections;
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> edge_lambdas;
+            std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> area_lambdas;
             Microsoft::WRL::ComPtr<ID3D12Resource> vertices;
             D3D12_VERTEX_BUFFER_VIEW vertex_view{};
             std::uint32_t particle_read = 0;
             bool correction_is_srv = false;
             bool lambda_zero_is_srv = false;
+            bool area_lambda_zero_is_srv = false;
             bool vertex_is_input_buffer = false;
             float center_x = 0.0f;
         };
@@ -210,6 +212,7 @@ namespace csp
         std::uint32_t tetrahedron_count = 0;
         std::uint32_t vertex_count = 0;
         std::uint32_t edge_count = 0;
+        std::uint32_t triangle_count = 0;
         Microsoft::WRL::ComPtr<ID3D12Resource> inverse_masses;
         Microsoft::WRL::ComPtr<ID3D12Resource> rest_positions;
         Microsoft::WRL::ComPtr<ID3D12Resource> tetrahedra;
@@ -220,6 +223,9 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_edges;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_edge_ranges;
         Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_corrections;
+        Microsoft::WRL::ComPtr<ID3D12Resource> surface_triangle_areas;
+        Microsoft::WRL::ComPtr<ID3D12Resource> surface_triangle_ranges;
+        Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_triangles;
         std::array<gpu_body, 2> bodies;
         std::array<camera_gpu_body, 2> camera_bodies;
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature;
@@ -230,6 +236,7 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12PipelineState> skin_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_collision_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_edge_pipeline;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_area_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_gather_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_skin_pipeline;
         std::array<std::unique_ptr<benchmark_log>, 2> logs;
@@ -628,6 +635,7 @@ namespace csp
             && create_pipeline(L"skin_vertices.dxil", compute_->skin_pipeline)
             && create_pipeline(L"camera_collision.dxil", compute_->camera_collision_pipeline)
             && create_pipeline(L"camera_surface_edges.dxil", compute_->camera_surface_edge_pipeline)
+            && create_pipeline(L"camera_surface_area.dxil", compute_->camera_surface_area_pipeline)
             && create_pipeline(L"camera_surface_gather.dxil", compute_->camera_surface_gather_pipeline)
             && create_pipeline(L"camera_surface_skin.dxil", compute_->camera_surface_skin_pipeline);
     }
@@ -638,10 +646,13 @@ namespace csp
         compute_->tetrahedron_count = static_cast<std::uint32_t>(volume_mesh.tetrahedra.size());
         compute_->vertex_count = static_cast<std::uint32_t>(surface_mesh.vertices.size());
         compute_->edge_count = static_cast<std::uint32_t>(surface_mesh.edges.size());
+        compute_->triangle_count = static_cast<std::uint32_t>(surface_mesh.triangle_areas.size());
         if (compute_->particle_count == 0 || compute_->tetrahedron_count == 0
-            || compute_->vertex_count == 0 || compute_->edge_count == 0
+            || compute_->vertex_count == 0 || compute_->edge_count == 0 || compute_->triangle_count == 0
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
-            || surface_mesh.incident_corrections.size() != surface_mesh.edges.size() * 2)
+            || surface_mesh.incident_corrections.size() != surface_mesh.edges.size() * 2
+            || surface_mesh.triangle_incidence_ranges.size() != surface_mesh.vertices.size()
+            || surface_mesh.incident_triangle_corners.size() != surface_mesh.triangle_areas.size() * 3)
             return false;
 
         const auto upload_vector = [this](const auto& values) -> Microsoft::WRL::ComPtr<ID3D12Resource>
@@ -665,11 +676,16 @@ namespace csp
         compute_->surface_edges = upload_vector(surface_mesh.edges);
         compute_->surface_edge_ranges = upload_vector(surface_mesh.edge_incidence_ranges);
         compute_->incident_surface_corrections = upload_vector(surface_mesh.incident_corrections);
+        compute_->surface_triangle_areas = upload_vector(surface_mesh.triangle_areas);
+        compute_->surface_triangle_ranges = upload_vector(surface_mesh.triangle_incidence_ranges);
+        compute_->incident_surface_triangles = upload_vector(surface_mesh.incident_triangle_corners);
 
         if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra
             || !compute_->incidence_ranges || !compute_->incident_tetrahedra
             || !compute_->tetrahedron_indices || !compute_->surface_mappings
-            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections)
+            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections
+            || !compute_->surface_triangle_areas || !compute_->surface_triangle_ranges
+            || !compute_->incident_surface_triangles)
             return false;
 
         std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> volume_uploads;
@@ -759,8 +775,10 @@ namespace csp
             }
 
             const UINT64 edge_correction_bytes =
-                static_cast<UINT64>(compute_->edge_count) * sizeof(DirectX::XMFLOAT3);
+                static_cast<UINT64>(compute_->edge_count + compute_->triangle_count * 3u)
+                * sizeof(DirectX::XMFLOAT3);
             const UINT64 edge_lambda_bytes = static_cast<UINT64>(compute_->edge_count) * sizeof(float);
+            const UINT64 area_lambda_bytes = static_cast<UINT64>(compute_->triangle_count) * sizeof(float);
             camera_body.edge_corrections = create_buffer(device_.Get(), edge_correction_bytes,
                 D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -769,11 +787,15 @@ namespace csp
                 camera_body.edge_lambdas[buffer_index] = create_buffer(device_.Get(), edge_lambda_bytes,
                     D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                camera_body.area_lambdas[buffer_index] = create_buffer(device_.Get(), area_lambda_bytes,
+                    D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             }
             camera_body.vertices = create_buffer(device_.Get(), vertex_bytes, D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             if (!camera_body.edge_corrections || !camera_body.edge_lambdas[0]
-                || !camera_body.edge_lambdas[1] || !camera_body.vertices) return false;
+                || !camera_body.edge_lambdas[1] || !camera_body.area_lambdas[0]
+                || !camera_body.area_lambdas[1] || !camera_body.vertices) return false;
 
             camera_body.vertex_view.BufferLocation = camera_body.vertices->GetGPUVirtualAddress();
             camera_body.vertex_view.SizeInBytes = static_cast<UINT>(vertex_bytes);
@@ -841,11 +863,16 @@ namespace csp
             compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_corrections.Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_lambdas[0].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_lambdas[1].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.area_lambdas[0].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.area_lambdas[1].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.vertices.Get());
         }
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edge_ranges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_corrections.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_triangle_areas.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_triangle_ranges.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_triangles.Get());
         compute_->resident_simulation_buffer_bytes =
             compute_->tetrahedral_buffer_bytes + compute_->camera_surface_buffer_bytes;
 
