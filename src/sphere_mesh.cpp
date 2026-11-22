@@ -95,7 +95,6 @@ namespace csp
         using edge_key = std::array<std::uint32_t, 2>;
         std::vector<edge_record> edge_records;
         edge_records.reserve(mesh.indices.size());
-        std::vector<std::array<float, 3>> face_normals(mesh.indices.size() / 3u);
         mesh.edges.clear();
         mesh.edge_incidence_ranges.clear();
         mesh.incident_corrections.clear();
@@ -134,7 +133,6 @@ namespace csp
             if (!(twice_area > 1.0e-12f) || !std::isfinite(twice_area))
                 throw std::invalid_argument("Surface contains a degenerate rest triangle.");
 
-            face_normals[face] = {normal[0] / twice_area, normal[1] / twice_area, normal[2] / twice_area};
             triangle_area_constraint area{};
             area.indices[0] = a_index;
             area.indices[1] = b_index;
@@ -214,19 +212,6 @@ namespace csp
             const edge_face& face1 = edge_records[record_begin + 1u].face;
             if (face0.from != face1.to || face0.to != face1.from)
                 ++mesh.topology.orientation_conflict_count;
-
-            const std::array<float, 3>& n0 = face_normals[face0.face_index];
-            const std::array<float, 3>& n1 = face_normals[face1.face_index];
-            const float edge_length = std::max(edge.rest_length, 1.0e-12f);
-            const float edge_direction[3] = {dx / edge_length, dy / edge_length, dz / edge_length};
-            const float normal_cross[3] = {
-                n0[1] * n1[2] - n0[2] * n1[1],
-                n0[2] * n1[0] - n0[0] * n1[2],
-                n0[0] * n1[1] - n0[1] * n1[0]
-            };
-            const float sine = edge_direction[0] * normal_cross[0]
-                + edge_direction[1] * normal_cross[1] + edge_direction[2] * normal_cross[2];
-            const float cosine = std::clamp(n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2], -1.0f, 1.0f);
 
             bending_constraint bend{};
             bend.indices[0] = key[0];
