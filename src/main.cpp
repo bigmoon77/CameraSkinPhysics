@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <commctrl.h>
 #include <array>
 #include <sstream>
