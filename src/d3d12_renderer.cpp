@@ -1322,7 +1322,7 @@ namespace csp
         const std::uint64_t render_ticks = timestamps[4] - timestamps[3];
         std::uint64_t camera_edge_ticks = 0;
         std::uint64_t camera_gather_ticks = 0;
-        if (mode_index == 1u)
+        if (mode_index == 1u && !simulation_paused_)
         {
             for (std::uint32_t dispatch_index = 0; dispatch_index < 8; ++dispatch_index)
             {
