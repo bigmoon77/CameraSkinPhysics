@@ -48,9 +48,9 @@ namespace
         {L"\u63a5\u89e6\u6642\u306e\u6469\u64e6", 0.0f, 1.0f, false},
         {L"\u53cd\u767a\u4fc2\u6570", 0.0f, 1.0f, false},
         {L"\u63a5\u89e6\u5224\u5b9a\u306e\u5e45", 0.005f, 0.5f, false},
-        {L"\u30a8\u30c3\u30b8\u9577\u306e\u525b\u6027", 1.0e-9f, 1.0e-2f, false, true},
-        {L"\u9762\u7a4d\u306e\u525b\u6027", 1.0e-9f, 1.0e-2f, false, true},
-        {L"\u66f2\u3052\u306e\u525b\u6027", 1.0e-9f, 1.0e-2f, false, true}
+        {L"\u30a8\u30c3\u30b8\u9577\u306e\u30b3\u30f3\u30d7\u30e9\u30a4\u30a2\u30f3\u30b9", 1.0e-9f, 1.0e-2f, false, true},
+        {L"\u9762\u7a4d\u306e\u30b3\u30f3\u30d7\u30e9\u30a4\u30a2\u30f3\u30b9", 1.0e-9f, 1.0e-2f, false, true},
+        {L"\u66f2\u3052\u306e\u30b3\u30f3\u30d7\u30e9\u30a4\u30a2\u30f3\u30b9", 1.0e-9f, 1.0e-2f, false, true}
     };
 
     float get_parameter_value(const csp::simulation_parameters& parameters, int index)
@@ -118,6 +118,7 @@ namespace
         const csp::performance_metrics metrics = active_renderer->get_performance_metrics();
         std::wostringstream text;
         text << std::fixed << std::setprecision(2)
+            << L"\\u525b\\u6027\\u8abf\\u6574: Compliance\\u306f\\u5024\\u304c\\u5c0f\\u3055\\u3044\\u307b\\u3069\\u786c\\u3044\\n"
             << L"CPU\u30d5\u30ec\u30fc\u30e0 " << metrics.cpu_frame_ms << L" ms    GPU\u5408\u8a08 " << metrics.gpu_total_ms << L" ms\n"
             << L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3 " << metrics.gpu_simulation_ms << L" ms    \u63a5\u89e6\u51e6\u7406 "
             << metrics.gpu_collision_ms << L" ms    \u63cf\u753b " << metrics.gpu_render_ms << L" ms\n"
@@ -152,7 +153,7 @@ namespace
         {
             for (int index = 0; index < parameter_count; ++index)
             {
-                const int top = 18 + index * 76;
+                const int top = 18 + index * 62;
                 CreateWindowExW(0, L"STATIC", parameter_descriptions[index].label,
                     WS_CHILD | WS_VISIBLE, 16, top, 245, 22, window, nullptr,
                     GetModuleHandleW(nullptr), nullptr);
@@ -169,17 +170,17 @@ namespace
             }
             CreateWindowExW(0, L"BUTTON", L"\u30d1\u30e9\u30e1\u30fc\u30bf\u3092\u521d\u671f\u5316",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                16, 18 + parameter_count * 76, 240, 32, window,
+                16, 18 + parameter_count * 62, 240, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_reset_id)),
                 GetModuleHandleW(nullptr), nullptr);
             pause_button = CreateWindowExW(0, L"BUTTON", L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u3092\u4e00\u6642\u505c\u6b62",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                280, 18 + parameter_count * 76, 240, 32, window,
+                280, 18 + parameter_count * 62, 240, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_pause_id)),
                 GetModuleHandleW(nullptr), nullptr);
             performance_label = CreateWindowExW(0, L"STATIC", L"CPU -- ms    GPU -- ms",
-                WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 76 + 40,
-                520, 58, window, nullptr, GetModuleHandleW(nullptr), nullptr);
+                WS_CHILD | WS_VISIBLE, 16, 18 + parameter_count * 62 + 40,
+                520, 68, window, nullptr, GetModuleHandleW(nullptr), nullptr);
             update_parameter_controls();
             update_performance_controls();
             return 0;
@@ -353,7 +354,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
             parameter_window_class_name, L"CameraSkinPhysics | \u30d1\u30e9\u30e1\u30fc\u30bf",
             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-            CW_USEDEFAULT, CW_USEDEFAULT, 560, 18 + parameter_count * 76 + 105,
+            CW_USEDEFAULT, CW_USEDEFAULT, 560, 18 + parameter_count * 62 + 115,
             window, nullptr, instance, nullptr);
         if (parameter_window == nullptr)
             throw std::runtime_error("Failed to create parameter window.");
