@@ -165,7 +165,8 @@ namespace csp
             std::uint32_t triangle_count;
             float delta_time;
             float relaxation;
-            float padding[3];
+            float compliance;
+            float padding[2];
         };
         static_assert(sizeof(camera_bending_constants) == 32);
 
