@@ -25,7 +25,6 @@ namespace csp
         constexpr std::uint32_t compute_uav_count = 2;
         constexpr std::uint32_t compute_table_size = compute_srv_count + compute_uav_count;
         constexpr std::uint32_t compute_descriptor_capacity = 4096;
-        constexpr std::uint32_t solver_iterations = 4;
 
         std::vector<char> read_binary_file(const std::filesystem::path& path)
         {
@@ -1011,7 +1010,7 @@ namespace csp
             body.particle_read = integration_output;
 
             std::uint32_t lambda_read = 0;
-            for (std::uint32_t iteration = 0; iteration < solver_iterations; ++iteration)
+            for (std::uint32_t iteration = 0; iteration < simulation_parameters_.solver_iterations; ++iteration)
             {
                 if (body.correction_is_srv)
                 {
@@ -1154,7 +1153,7 @@ namespace csp
                     compute_->edge_count, sizeof(float));
 
                 const tetrahedron_constants solve_constants{
-                    compute_->edge_count, clamped_delta_time, 0.8f, 0.0f
+                    compute_->edge_count, clamped_delta_time, simulation_parameters_.edge_relaxation, 0.0f
                 };
                 const std::uint32_t edge_query = 5u + camera_dispatch_index * 2u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, edge_query);
@@ -1187,7 +1186,7 @@ namespace csp
                     compute_->vertex_count, sizeof(simulation_particle));
 
                 const gather_constants gather_values{
-                    compute_->vertex_count, 0.008f, clamped_delta_time, 0.0f
+                    compute_->vertex_count, simulation_parameters_.max_correction, clamped_delta_time, 0.0f
                 };
                 const std::uint32_t gather_query = 21u + camera_dispatch_index * 2u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, gather_query);
@@ -1405,11 +1404,11 @@ namespace csp
                 use_camera_surface ? compute_->vertex_count : compute_->particle_count;
             collision_constants.viewport_width = capture_size;
             collision_constants.viewport_height = capture_size;
-            collision_constants.particle_radius = use_camera_surface ? 0.012f : 0.035f;
-            collision_constants.pushout = use_camera_surface ? 0.006f : 0.012f;
-            collision_constants.velocity_friction = 0.12f;
-            collision_constants.restitution = 0.18f;
-            collision_constants.contact_band = use_camera_surface ? 0.10f : 0.16f;
+            collision_constants.particle_radius = use_camera_surface ? simulation_parameters_.particle_radius : 0.035f;
+            collision_constants.pushout = use_camera_surface ? simulation_parameters_.pushout : 0.012f;
+            collision_constants.velocity_friction = use_camera_surface ? simulation_parameters_.velocity_friction : 0.12f;
+            collision_constants.restitution = use_camera_surface ? simulation_parameters_.restitution : 0.18f;
+            collision_constants.contact_band = use_camera_surface ? simulation_parameters_.contact_band : 0.16f;
 
             ID3D12Resource* input_particles = nullptr;
             ID3D12Resource* output_particles = nullptr;
@@ -1555,6 +1554,23 @@ namespace csp
     solver_mode d3d12_renderer::get_solver_mode() const
     {
         return solver_mode_;
+    }
+
+    void d3d12_renderer::set_simulation_parameters(const simulation_parameters& parameters)
+    {
+        simulation_parameters_.solver_iterations = std::clamp(parameters.solver_iterations, 1u, 4u);
+        simulation_parameters_.edge_relaxation = std::clamp(parameters.edge_relaxation, 0.0f, 1.5f);
+        simulation_parameters_.max_correction = std::clamp(parameters.max_correction, 0.0001f, 0.05f);
+        simulation_parameters_.particle_radius = std::clamp(parameters.particle_radius, 0.001f, 0.05f);
+        simulation_parameters_.pushout = std::clamp(parameters.pushout, 0.0f, 0.03f);
+        simulation_parameters_.velocity_friction = std::clamp(parameters.velocity_friction, 0.0f, 1.0f);
+        simulation_parameters_.restitution = std::clamp(parameters.restitution, 0.0f, 1.0f);
+        simulation_parameters_.contact_band = std::clamp(parameters.contact_band, 0.005f, 0.5f);
+    }
+
+    simulation_parameters d3d12_renderer::get_simulation_parameters() const
+    {
+        return simulation_parameters_;
     }
 
     void d3d12_renderer::wait_gpu()
