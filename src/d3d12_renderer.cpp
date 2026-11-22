@@ -1829,6 +1829,7 @@ namespace csp
         compute_->logs[mode_index]->write_frame(++compute_->benchmark_frame_numbers[mode_index],
             cpu_frame_ms,
             static_cast<double>(simulation_ticks) * ticks_to_ms,
+            performance_metrics_.camera_constraint_solve_ms,
             static_cast<double>(camera_edge_ticks) * ticks_to_ms,
             static_cast<double>(camera_area_ticks) * ticks_to_ms,
             static_cast<double>(camera_bending_ticks) * ticks_to_ms,
