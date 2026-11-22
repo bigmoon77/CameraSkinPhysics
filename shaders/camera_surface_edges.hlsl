@@ -41,8 +41,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     if (current_length < 1.0e-8f || edge.rest_length < 1.0e-8f)
     {
         g_lambda_out[edge_index] = old_lambda;
-        g_edge_corrections[edge_index * 2 + 0] = float3(0.0f, 0.0f, 0.0f);
-        g_edge_corrections[edge_index * 2 + 1] = float3(0.0f, 0.0f, 0.0f);
+        g_edge_corrections[edge_index] = float3(0.0f, 0.0f, 0.0f);
         return;
     }
 
@@ -54,6 +53,5 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float3 correction = gradient * scaled_lambda;
 
     g_lambda_out[edge_index] = old_lambda + scaled_lambda;
-    g_edge_corrections[edge_index * 2 + 0] = correction;
-    g_edge_corrections[edge_index * 2 + 1] = -correction;
+    g_edge_corrections[edge_index] = correction;
 }
