@@ -397,7 +397,9 @@ with open(output_path, "w", encoding="utf-8") as output:
             ? L"\u8868\u9762\u7c92\u5b50 XPBD"
             : L"\u56db\u9762\u4f53 XPBD";
         const std::wstring title = std::wstring(L"CameraSkinPhysics | ") + mode_name
-            + L" | F1: \u56db\u9762\u4f53 XPBD  F2: \u8868\u9762\u7c92\u5b50  F3: \u30d1\u30e9\u30e1\u30fc\u30bf | output/ \u306b\u8a08\u6e2c\u7d50\u679c";
+            + (custom_model_loaded
+                ? L" | F2: \u8868\u9762\u7c92\u5b50  F3: \u30d1\u30e9\u30e1\u30fc\u30bf | \u5916\u90e8\u30e2\u30c7\u30eb"
+                : L" | F1: \u56db\u9762\u4f53 XPBD  F2: \u8868\u9762\u7c92\u5b50  F3: \u30d1\u30e9\u30e1\u30fc\u30bf | output/ \u306b\u8a08\u6e2c\u7d50\u679c");
         SetWindowTextW(window, title.c_str());
     }
 
