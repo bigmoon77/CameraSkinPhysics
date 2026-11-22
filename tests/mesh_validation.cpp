@@ -192,8 +192,8 @@ int main()
 
     check(surface.bending_incidence_ranges.size() == surface.vertices.size(),
         "bending CSR range count must match vertex count");
-    check(surface.incident_bending_corners.size() == surface.bending.size() * 4u,
-        "bending CSR must contain four incidence entries per hinge");
+    check(surface.incident_bending_corners.size() == surface.bending.size() * 2u,
+        "bending CSR must contain two opposite-vertex incidence entries per hinge");
     bool bending_csr_valid = true;
     std::uint64_t bending_incidence_total = 0;
     for (std::size_t vertex_index = 0; vertex_index < surface.bending_incidence_ranges.size(); ++vertex_index)
@@ -208,10 +208,10 @@ int main()
         for (std::uint32_t offset = 0; offset < range.y; ++offset)
         {
             const std::uint32_t encoded = surface.incident_bending_corners[range.x + offset];
-            const std::uint32_t bending_index = encoded / 4u;
-            const std::uint32_t corner = encoded % 4u;
+            const std::uint32_t bending_index = encoded / 2u;
+            const std::uint32_t opposite_index = encoded % 2u;
             if (bending_index >= surface.bending.size()
-                || surface.bending[bending_index].indices[corner] != vertex_index)
+                || surface.bending[bending_index].indices[opposite_index + 2u] != vertex_index)
             {
                 bending_csr_valid = false;
                 break;
@@ -220,8 +220,8 @@ int main()
         if (!bending_csr_valid) break;
     }
     check(bending_csr_valid, "bending CSR entries must reference incident hinge corners");
-    check(bending_incidence_total == surface.bending.size() * 4ull,
-        "bending CSR must contain exactly four entries per hinge");
+    check(bending_incidence_total == surface.bending.size() * 2ull,
+        "bending CSR must contain exactly two opposite-vertex entries per hinge");
 
     check(surface.triangle_incidence_ranges.size() == surface.vertices.size(),
         "triangle area CSR range count must match vertex count");
@@ -275,8 +275,8 @@ int main()
     check(std::abs(open_surface.bending[0].rest_distance - std::sqrt(2.0f)) < 1.0e-6f,
         "quad hinge rest distance must match the opposite-vertex distance");
     check(open_surface.bending_incidence_ranges.size() == 4u
-        && open_surface.incident_bending_corners.size() == 4u,
-        "open surface must generate complete bending hinge CSR adjacency");
+        && open_surface.incident_bending_corners.size() == 2u,
+        "open surface must index only the two opposite vertices in bending CSR");
     check(open_surface.triangle_areas.size() == 2u,
         "two-triangle quad must generate two area constraints");
     check(open_surface.triangle_incidence_ranges.size() == 4u
