@@ -23,7 +23,8 @@ namespace csp
             std::uint64_t resident_simulation_buffer_bytes,
             std::uint32_t solver_iterations, float edge_relaxation,
             float max_correction, float particle_radius, float pushout,
-            float velocity_friction, float restitution, float contact_band);
+            float velocity_friction, float restitution, float contact_band,
+            float shape_matching_strength);
 
     private:
         std::ofstream stream_;
