@@ -268,6 +268,7 @@ namespace
         if (!script) return false;
         script << R"PY(import bpy
 import sys
+import json
 from mathutils import Matrix
 
 args = sys.argv[sys.argv.index("--") + 1:]
