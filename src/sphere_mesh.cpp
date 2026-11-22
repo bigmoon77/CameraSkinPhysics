@@ -63,7 +63,7 @@ namespace csp
         build_surface_constraints(mesh);
         return mesh;
     }
-}
+
     void build_surface_constraints(sphere_mesh& mesh,
         const float edge_compliance,
         const float area_compliance,
@@ -71,8 +71,9 @@ namespace csp
     {
         if (mesh.indices.size() % 3u != 0u)
             throw std::invalid_argument("Surface index count must be divisible by three.");
-        if (mesh.vertices.size() > static_cast<std::size_t>(UINT32_MAX))
-            throw std::invalid_argument("Surface vertex count exceeds 32-bit topology limits.");
+        if (mesh.vertices.size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())
+            || mesh.indices.size() / 3u > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
+            throw std::invalid_argument("Surface topology exceeds 32-bit index limits.");
 
         struct edge_face
         {
@@ -254,4 +255,4 @@ namespace csp
             && mesh.topology.orientation_conflict_count == 0u
             && std::abs(mesh.topology.signed_rest_volume) > 1.0e-12f;
     }
-
+}
