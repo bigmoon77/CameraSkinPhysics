@@ -318,7 +318,6 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12PipelineState> gather_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> skin_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_collision_pipeline;
-        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_contact_smooth_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_contact_apply_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_edge_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_area_pipeline;
@@ -734,7 +733,6 @@ namespace csp
             && create_pipeline(L"xpbd_gather.dxil", compute_->gather_pipeline)
             && create_pipeline(L"skin_vertices.dxil", compute_->skin_pipeline)
             && create_pipeline(L"camera_collision.dxil", compute_->camera_collision_pipeline)
-            && create_pipeline(L"camera_contact_smooth.dxil", compute_->camera_contact_smooth_pipeline)
             && create_pipeline(L"camera_contact_apply.dxil", compute_->camera_contact_apply_pipeline)
             && create_pipeline(L"camera_surface_edges.dxil", compute_->camera_surface_edge_pipeline)
             && create_pipeline(L"camera_surface_area.dxil", compute_->camera_surface_area_pipeline)
