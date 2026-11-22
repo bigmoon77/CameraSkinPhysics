@@ -1348,7 +1348,11 @@ namespace csp
             static_cast<double>(render_ticks) * ticks_to_ms,
             particle_count, tetrahedron_count,
             mode_index == 1u ? compute_->camera_surface_buffer_bytes : compute_->tetrahedral_buffer_bytes,
-            compute_->resident_simulation_buffer_bytes);
+            compute_->resident_simulation_buffer_bytes,
+            simulation_parameters_.solver_iterations, simulation_parameters_.edge_relaxation,
+            simulation_parameters_.max_correction, simulation_parameters_.particle_radius,
+            simulation_parameters_.pushout, simulation_parameters_.velocity_friction,
+            simulation_parameters_.restitution, simulation_parameters_.contact_band);
 
         const D3D12_RANGE written_range{0, 0};
         timestamp_readback_->Unmap(0, &written_range);
