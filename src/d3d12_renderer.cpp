@@ -920,6 +920,8 @@ namespace csp
             compute_->camera_surface_buffer_bytes += resource_bytes(body.edge_lambdas[1].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.area_lambdas[0].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.area_lambdas[1].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.bending_lambdas[0].Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.bending_lambdas[1].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.vertices.Get());
         }
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edges.Get());
@@ -928,6 +930,9 @@ namespace csp
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_triangle_areas.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_triangle_ranges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_triangles.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_bending.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_bending_ranges.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_bending.Get());
         compute_->resident_simulation_buffer_bytes =
             compute_->tetrahedral_buffer_bytes + compute_->camera_surface_buffer_bytes;
 
