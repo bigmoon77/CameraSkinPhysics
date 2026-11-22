@@ -18,7 +18,7 @@ namespace csp
             << "gpu_collision_ms,gpu_render_ms,gpu_total_ms,gpu_fps,particle_count,"
             << "tetrahedron_count,solver_buffer_bytes,resident_simulation_buffer_bytes,"
             << "solver_iterations,edge_relaxation,max_correction,particle_radius,pushout,"
-            << "velocity_friction,restitution,contact_band\n";
+            << "velocity_friction,restitution,contact_band,shape_matching_strength\n";
     }
 
     benchmark_log::~benchmark_log()
@@ -33,7 +33,8 @@ namespace csp
         std::uint64_t tetrahedron_count, std::uint64_t solver_buffer_bytes,
         std::uint64_t resident_simulation_buffer_bytes, std::uint32_t solver_iterations,
         float edge_relaxation, float max_correction, float particle_radius, float pushout,
-        float velocity_friction, float restitution, float contact_band)
+        float velocity_friction, float restitution, float contact_band,
+        float shape_matching_strength)
     {
         const double gpu_total_ms = gpu_simulation_ms + gpu_depth_capture_ms
             + gpu_collision_ms + gpu_render_ms;
@@ -48,6 +49,6 @@ namespace csp
             << solver_buffer_bytes << ',' << resident_simulation_buffer_bytes << ','
             << solver_iterations << ',' << edge_relaxation << ',' << max_correction << ','
             << particle_radius << ',' << pushout << ',' << velocity_friction << ','
-            << restitution << ',' << contact_band << '\n';
+            << restitution << ',' << contact_band << ',' << shape_matching_strength << '\n';
     }
 }
