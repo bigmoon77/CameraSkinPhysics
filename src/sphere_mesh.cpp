@@ -100,6 +100,8 @@ namespace csp
         mesh.edge_incidence_ranges.clear();
         mesh.incident_corrections.clear();
         mesh.triangle_areas.clear();
+        mesh.triangle_incidence_ranges.clear();
+        mesh.incident_triangle_corners.clear();
         mesh.bending.clear();
         mesh.topology = {};
 
@@ -137,6 +139,9 @@ namespace csp
             area.rest_area = 0.5f * twice_area;
             area.compliance = area_compliance;
             mesh.triangle_areas.push_back(area);
+            ++area_incidence_counts[a_index];
+            ++area_incidence_counts[b_index];
+            ++area_incidence_counts[c_index];
 
             signed_volume += (
                 static_cast<double>(a.position[0]) * (static_cast<double>(b.position[1]) * c.position[2] - static_cast<double>(b.position[2]) * c.position[1])
@@ -162,6 +167,7 @@ namespace csp
             });
 
         std::vector<std::uint32_t> incidence_counts(mesh.vertices.size(), 0u);
+        std::vector<std::uint32_t> area_incidence_counts(mesh.vertices.size(), 0u);
         mesh.edges.reserve(edge_records.size() / 2u + 1u);
         mesh.bending.reserve(edge_records.size() / 2u + 1u);
         for (std::size_t record_begin = 0; record_begin < edge_records.size();)
@@ -249,6 +255,30 @@ namespace csp
                 const std::uint32_t destination =
                     mesh.edge_incidence_ranges[vertex_index].x + write_offsets[vertex_index]++;
                 mesh.incident_corrections[destination] = edge_index * 2u + endpoint;
+            }
+        }
+
+        mesh.triangle_incidence_ranges.resize(mesh.vertices.size());
+        std::uint32_t triangle_incidence_offset = 0u;
+        for (std::size_t vertex_index = 0; vertex_index < mesh.vertices.size(); ++vertex_index)
+        {
+            mesh.triangle_incidence_ranges[vertex_index] = {
+                triangle_incidence_offset, area_incidence_counts[vertex_index]};
+            triangle_incidence_offset += area_incidence_counts[vertex_index];
+        }
+
+        mesh.incident_triangle_corners.resize(triangle_incidence_offset);
+        std::vector<std::uint32_t> triangle_write_offsets(mesh.vertices.size(), 0u);
+        for (std::uint32_t triangle_index = 0;
+            triangle_index < static_cast<std::uint32_t>(mesh.triangle_areas.size()); ++triangle_index)
+        {
+            const triangle_area_constraint& area = mesh.triangle_areas[triangle_index];
+            for (std::uint32_t corner = 0; corner < 3u; ++corner)
+            {
+                const std::uint32_t vertex_index = area.indices[corner];
+                const std::uint32_t destination =
+                    mesh.triangle_incidence_ranges[vertex_index].x + triangle_write_offsets[vertex_index]++;
+                mesh.incident_triangle_corners[destination] = triangle_index * 3u + corner;
             }
         }
 
