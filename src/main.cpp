@@ -21,7 +21,7 @@ namespace
     constexpr int parameter_control_base = 100;
     constexpr int parameter_reset_id = 200;
     constexpr int parameter_pause_id = 201;
-    constexpr int parameter_count = 11;
+    constexpr int parameter_count = 12;
     HWND parameter_sliders[parameter_count]{};
     HWND parameter_value_labels[parameter_count]{};
     HWND parameter_window = nullptr;
@@ -50,7 +50,8 @@ namespace
         {L"\u63a5\u89e6\u5224\u5b9a\u306e\u5e45", 0.005f, 0.5f, false},
         {L"\u30a8\u30c3\u30b8\u9577\u306e\u30b3\u30f3\u30d7\u30e9\u30a4\u30a2\u30f3\u30b9", 1.0e-9f, 1.0e-2f, false, true},
         {L"\u9762\u7a4d\u306e\u30b3\u30f3\u30d7\u30e9\u30a4\u30a2\u30f3\u30b9", 1.0e-9f, 1.0e-2f, false, true},
-        {L"\u66f2\u3052\u306e\u30b3\u30f3\u30d7\u30e9\u30a4\u30a2\u30f3\u30b9", 1.0e-9f, 1.0e-2f, false, true}
+        {L"\u66f2\u3052\u306e\u30b3\u30f3\u30d7\u30e9\u30a4\u30a2\u30f3\u30b9", 1.0e-9f, 1.0e-2f, false, true},
+        {L"\u30af\u30e9\u30b9\u30bf\u5f62\u72b6\u306e\u5fa9\u5143\u5f37\u5ea6", 0.0f, 1.0f, false}
     };
 
     float get_parameter_value(const csp::simulation_parameters& parameters, int index)
@@ -67,6 +68,7 @@ namespace
         case 8: return parameters.edge_compliance;
         case 9: return parameters.area_compliance;
         case 10: return parameters.bending_compliance;
+        case 11: return parameters.shape_matching_strength;
         default: return parameters.contact_band;
         }
     }
@@ -85,6 +87,7 @@ namespace
         case 8: parameters.edge_compliance = value; break;
         case 9: parameters.area_compliance = value; break;
         case 10: parameters.bending_compliance = value; break;
+        case 11: parameters.shape_matching_strength = value; break;
         default: parameters.contact_band = value; break;
         }
     }
