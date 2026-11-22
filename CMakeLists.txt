@@ -6,6 +6,7 @@ option(CSP_BUILD_D3D12_APP "Build the Direct3D 12 demo application" ON)
 
 add_library(CameraSkinPhysicsCore
     src/sphere_mesh.cpp
+    src/obj_mesh.cpp
     src/shape_matching.cpp
     src/tetrahedral_mesh.cpp
     src/benchmark_log.cpp
