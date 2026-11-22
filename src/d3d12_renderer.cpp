@@ -240,6 +240,8 @@ namespace csp
         std::uint64_t resident_simulation_buffer_bytes = 0;
     };
 
+    d3d12_renderer::d3d12_renderer() = default;
+
     d3d12_renderer::~d3d12_renderer()
     {
         wait_gpu();
