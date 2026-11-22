@@ -17,6 +17,18 @@ namespace csp
         camera_surface
     };
 
+    struct simulation_parameters
+    {
+        std::uint32_t solver_iterations = 4;
+        float edge_relaxation = 0.8f;
+        float max_correction = 0.008f;
+        float particle_radius = 0.012f;
+        float pushout = 0.006f;
+        float velocity_friction = 0.12f;
+        float restitution = 0.18f;
+        float contact_band = 0.10f;
+    };
+
     class d3d12_renderer
     {
     public:
@@ -30,6 +42,8 @@ namespace csp
         void render(float delta_time);
         void set_solver_mode(solver_mode mode);
         solver_mode get_solver_mode() const;
+        void set_simulation_parameters(const simulation_parameters& parameters);
+        simulation_parameters get_simulation_parameters() const;
         void wait_gpu();
 
     private:
@@ -104,5 +118,6 @@ namespace csp
         std::uint64_t timestamp_frequency_ = 0;
         HANDLE fence_event_ = nullptr;
         solver_mode solver_mode_ = solver_mode::tetrahedral_xpbd;
+        simulation_parameters simulation_parameters_{};
     };
 }
