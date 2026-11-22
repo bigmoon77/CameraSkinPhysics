@@ -1957,51 +1957,16 @@ namespace csp
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                     body.contact_correction_is_srv[contact_write_index] = true;
 
-                    constexpr float contact_smoothing_strength = 0.65f;
-                    const std::uint32_t correction_output_index = 1u - contact_write_index;
-                    ID3D12Resource* correction_output =
-                        body.contact_corrections[correction_output_index].Get();
-                    if (body.contact_correction_is_srv[correction_output_index])
-                    {
-                        transition_resource(correction_output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                        body.contact_correction_is_srv[correction_output_index] = false;
-                    }
-
-                    const std::uint32_t smooth_table = reserve_descriptor_table();
-                    clear_descriptor_table(smooth_table);
-                    write_buffer_srv(smooth_table, 0, correction_input,
-                        compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
-                    write_buffer_srv(smooth_table, 1, compute_->surface_edge_ranges.Get(),
-                        compute_->vertex_count, sizeof(mesh_uint2));
-                    write_buffer_srv(smooth_table, 2, compute_->incident_surface_corrections.Get(),
-                        compute_->edge_count * 2u, sizeof(std::uint32_t));
-                    write_buffer_srv(smooth_table, 3, compute_->surface_edges.Get(),
-                        compute_->edge_count, sizeof(surface_edge));
-                    write_buffer_uav(smooth_table, 0, correction_output,
-                        compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
-                    const std::uint32_t smooth_values[4] = {
-                        compute_->vertex_count, std::bit_cast<std::uint32_t>(contact_smoothing_strength), 0u, 0u
-                    };
-                    dispatch_compute(compute_->camera_contact_smooth_pipeline.Get(),
-                        smooth_table, smooth_values, 4,
-                        (compute_->vertex_count + 255u) / 256u);
-
-                    transition_resource(correction_output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-                    body.contact_correction_is_srv[correction_output_index] = true;
-                    transition_resource(correction_input, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                    body.contact_correction_is_srv[contact_write_index] = false;
-                    contact_write_index = correction_output_index;
-                    correction_input = correction_output;
-
+                    constexpr float contact_smoothing_strength = 0.85f;
                     const std::uint32_t apply_output_index = 1u - *particle_read;
                     ID3D12Resource* apply_output = body.particles[apply_output_index].Get();
                     transition_resource(apply_output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
                     const std::uint32_t apply_table = reserve_descriptor_table();
                     clear_descriptor_table(apply_table);
+                    write_buffer_srv(apply_table, 0, correction_input,
+                        compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
                     write_buffer_srv(apply_table, 1, compute_->surface_edge_ranges.Get(),
                         compute_->vertex_count, sizeof(mesh_uint2));
                     write_buffer_srv(apply_table, 2, compute_->incident_surface_corrections.Get(),
@@ -2010,8 +1975,6 @@ namespace csp
                         compute_->edge_count, sizeof(surface_edge));
                     write_buffer_srv(apply_table, 4, body.particles[*particle_read].Get(),
                         compute_->vertex_count, sizeof(simulation_particle));
-                    write_buffer_srv(apply_table, 5, correction_input,
-                        compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
                     write_buffer_uav(apply_table, 1, apply_output,
                         compute_->vertex_count, sizeof(simulation_particle));
                     const std::uint32_t apply_values[4] = {
