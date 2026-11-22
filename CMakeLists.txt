@@ -69,7 +69,7 @@ if(WIN32 AND CSP_BUILD_D3D12_APP)
     target_compile_features(CameraSkinPhysics PRIVATE cxx_std_20)
     target_compile_definitions(CameraSkinPhysics PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_include_directories(CameraSkinPhysics PRIVATE include)
-    target_link_libraries(CameraSkinPhysics PRIVATE CameraSkinPhysicsCore d3d12 dxgi dxguid)
+    target_link_libraries(CameraSkinPhysics PRIVATE CameraSkinPhysicsCore d3d12 dxgi dxguid comctl32)
 
     add_custom_command(TARGET CameraSkinPhysics POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${SHADER_OUTPUT_DIR}" "$<TARGET_FILE_DIR:CameraSkinPhysics>/shaders"
