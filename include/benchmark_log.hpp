@@ -14,7 +14,8 @@ namespace csp
         benchmark_log& operator=(const benchmark_log&) = delete;
 
         void write_frame(std::uint64_t frame_index, double cpu_frame_ms,
-            double gpu_simulation_ms, double gpu_depth_capture_ms,
+            double gpu_simulation_ms, double camera_edge_solve_ms,
+            double camera_gather_ms, double gpu_depth_capture_ms,
             double gpu_collision_ms, double gpu_render_ms,
             std::uint64_t simulation_particle_count,
             std::uint64_t tetrahedron_count,

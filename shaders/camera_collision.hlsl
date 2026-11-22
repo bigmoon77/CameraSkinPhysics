@@ -12,6 +12,7 @@ cbuffer CameraCollisionConstants : register(b0)
     float particle_radius;
     float pushout;
     float velocity_friction;
+    float restitution;
     float contact_band;
 };
 [numthreads(256, 1, 1)]
@@ -51,7 +52,11 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
         particle.position.xyz += normal * min(penetration, effective_contact_band);
         const float normal_velocity = dot(particle.velocity.xyz, normal);
         if (normal_velocity < 0.0f)
-            particle.velocity.xyz -= normal * normal_velocity * (1.0f - velocity_friction);
+        {
+            const float3 tangent_velocity = particle.velocity.xyz - normal * normal_velocity;
+            particle.velocity.xyz = tangent_velocity * (1.0f - velocity_friction)
+                - normal * normal_velocity * restitution;
+        }
     }
     g_particles_out[index] = particle;
 }

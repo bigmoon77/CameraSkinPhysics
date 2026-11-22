@@ -155,8 +155,8 @@ namespace csp
             float particle_radius;
             float pushout;
             float velocity_friction;
+            float restitution;
             float contact_band;
-            std::uint32_t padding2;
         };
         static_assert(sizeof(camera_collision_constants) == 160);
 
@@ -331,10 +331,10 @@ namespace csp
             || !create_compute_resources(surface_mesh, volume_mesh)) return false;
 
         D3D12_QUERY_HEAP_DESC query_description{};
-        query_description.Count = 5;
+        query_description.Count = 37;
         query_description.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
         if (FAILED(device_->CreateQueryHeap(&query_description, IID_PPV_ARGS(&timestamp_query_heap_)))) return false;
-        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * 5,
+        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * 37,
             D3D12_HEAP_TYPE_READBACK, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
         if (!timestamp_readback_) return false;
         if (FAILED(command_queue_->GetTimestampFrequency(&timestamp_frequency_))) timestamp_frequency_ = 0;
@@ -1088,6 +1088,7 @@ namespace csp
         const std::uint32_t particle_groups = (compute_->vertex_count + 255u) / 256u;
         const std::uint32_t edge_groups = (compute_->edge_count + 255u) / 256u;
 
+        std::uint32_t camera_dispatch_index = 0;
         for (compute_state::camera_gpu_body& body : compute_->camera_bodies)
         {
             if (body.lambda_zero_is_srv)
@@ -1155,8 +1156,11 @@ namespace csp
                 const tetrahedron_constants solve_constants{
                     compute_->edge_count, clamped_delta_time, 0.8f, 0.0f
                 };
+                const std::uint32_t edge_query = 5u + camera_dispatch_index * 2u;
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, edge_query);
                 dispatch_compute(compute_->camera_surface_edge_pipeline.Get(), solve_table,
                     &solve_constants, 4, edge_groups);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, edge_query + 1u);
 
                 transition_resource(body.edge_corrections.Get(),
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -1187,8 +1191,12 @@ namespace csp
                 const gather_constants gather_values{
                     compute_->vertex_count, 0.008f, clamped_delta_time, 0.0f
                 };
+                const std::uint32_t gather_query = 21u + camera_dispatch_index * 2u;
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, gather_query);
                 dispatch_compute(compute_->camera_surface_gather_pipeline.Get(), gather_table,
                     &gather_values, 4, particle_groups);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, gather_query + 1u);
+                ++camera_dispatch_index;
                 transition_resource(body.particles[particle_output].Get(),
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                 body.particle_read = particle_output;
@@ -1307,7 +1315,7 @@ namespace csp
             solver_mode_ == solver_mode::camera_surface ? 1u : 0u;
         if (!compute_->logs[mode_index]) return;
 
-        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * 5};
+        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * 37};
         std::uint64_t* timestamps = nullptr;
         if (FAILED(timestamp_readback_->Map(0, &read_range, reinterpret_cast<void**>(&timestamps)))) return;
 
@@ -1315,6 +1323,18 @@ namespace csp
         const std::uint64_t capture_ticks = timestamps[2] - timestamps[1];
         const std::uint64_t collision_ticks = timestamps[3] - timestamps[2];
         const std::uint64_t render_ticks = timestamps[4] - timestamps[3];
+        std::uint64_t camera_edge_ticks = 0;
+        std::uint64_t camera_gather_ticks = 0;
+        if (mode_index == 1u)
+        {
+            for (std::uint32_t dispatch_index = 0; dispatch_index < 8; ++dispatch_index)
+            {
+                const std::uint32_t edge_query = 5u + dispatch_index * 2u;
+                const std::uint32_t gather_query = 21u + dispatch_index * 2u;
+                camera_edge_ticks += timestamps[edge_query + 1u] - timestamps[edge_query];
+                camera_gather_ticks += timestamps[gather_query + 1u] - timestamps[gather_query];
+            }
+        }
         const double ticks_to_ms = 1000.0 / static_cast<double>(timestamp_frequency_);
         const std::uint64_t particle_count =
             (mode_index == 1u ? compute_->vertex_count : compute_->particle_count) * 2ull;
@@ -1324,6 +1344,8 @@ namespace csp
         compute_->logs[mode_index]->write_frame(++compute_->benchmark_frame_numbers[mode_index],
             cpu_frame_ms,
             static_cast<double>(simulation_ticks) * ticks_to_ms,
+            static_cast<double>(camera_edge_ticks) * ticks_to_ms,
+            static_cast<double>(camera_gather_ticks) * ticks_to_ms,
             static_cast<double>(capture_ticks) * ticks_to_ms,
             static_cast<double>(collision_ticks) * ticks_to_ms,
             static_cast<double>(render_ticks) * ticks_to_ms,
@@ -1387,7 +1409,8 @@ namespace csp
             collision_constants.viewport_height = capture_size;
             collision_constants.particle_radius = use_camera_surface ? 0.012f : 0.035f;
             collision_constants.pushout = use_camera_surface ? 0.006f : 0.012f;
-            collision_constants.velocity_friction = 0.15f;
+            collision_constants.velocity_friction = 0.12f;
+            collision_constants.restitution = 0.18f;
             collision_constants.contact_band = use_camera_surface ? 0.10f : 0.16f;
 
             ID3D12Resource* input_particles = nullptr;
@@ -1499,7 +1522,7 @@ namespace csp
 
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 4);
         command_list_->ResolveQueryData(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
-            0, 5, timestamp_readback_.Get(), 0);
+            0, 37, timestamp_readback_.Get(), 0);
 
         back_buffer_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         back_buffer_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
