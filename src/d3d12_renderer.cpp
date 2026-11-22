@@ -1305,7 +1305,7 @@ namespace csp
                 std::uint32_t bending_lambda_write = bending_lambda_read;
                 if (compute_->bending_count > 0)
                 {
-                    const std::uint32_t bending_lambda_write = 1u - bending_lambda_read;
+                    bending_lambda_write = 1u - bending_lambda_read;
                     const std::uint32_t bending_table = reserve_descriptor_table();
                     clear_descriptor_table(bending_table);
                     write_buffer_srv(bending_table, 0, body.particles[body.particle_read].Get(),
