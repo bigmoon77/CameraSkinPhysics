@@ -106,7 +106,6 @@ void apply_corrections(uint3 dispatch_id : SV_DispatchThreadID)
 
         sum += neighbor.xyz * weight;
         weight_sum += weight;
-        propagated_contact = max(propagated_contact, neighbor.w);
     }
 
     const float3 average = sum / weight_sum;
