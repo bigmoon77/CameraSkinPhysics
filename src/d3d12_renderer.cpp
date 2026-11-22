@@ -670,8 +670,7 @@ namespace csp
         if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra
             || !compute_->incidence_ranges || !compute_->incident_tetrahedra
             || !compute_->tetrahedron_indices || !compute_->surface_mappings
-            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections
- )
+            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections)
             return false;
 
         std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> volume_uploads;
