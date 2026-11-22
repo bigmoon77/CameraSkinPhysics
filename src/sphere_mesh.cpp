@@ -227,8 +227,8 @@ namespace csp
                 + opposite_dy * opposite_dy + opposite_dz * opposite_dz);
             bend.compliance = bending_compliance;
             mesh.bending.push_back(bend);
-            for (const std::uint32_t vertex_index : bend.indices)
-                ++bending_incidence_counts[vertex_index];
+            ++bending_incidence_counts[bend.indices[2]];
+            ++bending_incidence_counts[bend.indices[3]];
             record_begin = record_end;
         }
 
@@ -293,12 +293,12 @@ namespace csp
             bending_index < static_cast<std::uint32_t>(mesh.bending.size()); ++bending_index)
         {
             const bending_constraint& bend = mesh.bending[bending_index];
-            for (std::uint32_t corner = 0; corner < 4u; ++corner)
+            for (std::uint32_t opposite_index = 0; opposite_index < 2u; ++opposite_index)
             {
-                const std::uint32_t vertex_index = bend.indices[corner];
+                const std::uint32_t vertex_index = bend.indices[opposite_index + 2u];
                 const std::uint32_t destination =
                     mesh.bending_incidence_ranges[vertex_index].x + bending_write_offsets[vertex_index]++;
-                mesh.incident_bending_corners[destination] = bending_index * 4u + corner;
+                mesh.incident_bending_corners[destination] = bending_index * 2u + opposite_index;
             }
         }
 
