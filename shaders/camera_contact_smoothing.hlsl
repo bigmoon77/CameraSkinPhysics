@@ -66,6 +66,9 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
         lerp(own.xyz, average, saturate(blend_strength)), propagated_contact);
 }
 
+StructuredBuffer<uint2> g_apply_edge_ranges : register(t1);
+StructuredBuffer<uint> g_apply_incident_edge_corrections : register(t2);
+StructuredBuffer<SurfaceEdge> g_apply_surface_edges : register(t3);
 StructuredBuffer<Particle> g_particles_in : register(t4);
 StructuredBuffer<float4> g_final_corrections : register(t5);
 RWStructuredBuffer<Particle> g_particles_out : register(u1);
@@ -75,7 +78,42 @@ void apply_corrections(uint3 dispatch_id : SV_DispatchThreadID)
 {
     const uint index = dispatch_id.x;
     if (index >= particle_count) return;
+
+    const float4 own = g_final_corrections[index];
+    const float own_length = length(own.xyz);
+    float3 sum = own.xyz;
+    float weight_sum = 1.0f;
+    float propagated_contact = own.w;
+    const uint2 range = g_apply_edge_ranges[index];
+    for (uint offset = 0; offset < range.y; ++offset)
+    {
+        const uint encoded_edge = g_apply_incident_edge_corrections[range.x + offset];
+        const SurfaceEdge edge = g_apply_surface_edges[encoded_edge >> 1u];
+        const uint neighbor_index = (encoded_edge & 1u) != 0u
+            ? edge.indices.x : edge.indices.y;
+        if (neighbor_index >= particle_count || neighbor_index == index)
+            continue;
+
+        const float4 neighbor = g_final_corrections[neighbor_index];
+        const float neighbor_length = length(neighbor.xyz);
+        float weight = 1.0f;
+        if (own_length > 1.0e-7f && neighbor_length > 1.0e-7f)
+        {
+            const float direction_similarity = dot(
+                own.xyz / own_length, neighbor.xyz / neighbor_length);
+            if (direction_similarity < 0.25f)
+                continue;
+            weight = saturate((direction_similarity - 0.25f) / 0.75f);
+        }
+
+        sum += neighbor.xyz * weight;
+        weight_sum += weight;
+        propagated_contact = max(propagated_contact, neighbor.w);
+    }
+
+    const float3 average = sum / weight_sum;
+    const float3 smoothed = lerp(own.xyz, average, saturate(blend_strength));
     Particle particle = g_particles_in[index];
-    particle.position.xyz += g_final_corrections[index].xyz;
+    particle.position.xyz += smoothed;
     g_particles_out[index] = particle;
 }
