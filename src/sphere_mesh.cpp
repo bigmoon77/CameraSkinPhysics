@@ -106,6 +106,7 @@ namespace csp
         mesh.topology = {};
 
         mesh.triangle_areas.reserve(mesh.indices.size() / 3u);
+        std::vector<std::uint32_t> area_incidence_counts(mesh.vertices.size(), 0u);
         double signed_volume = 0.0;
         for (std::uint32_t face = 0; face < mesh.indices.size() / 3u; ++face)
         {
@@ -167,7 +168,6 @@ namespace csp
             });
 
         std::vector<std::uint32_t> incidence_counts(mesh.vertices.size(), 0u);
-        std::vector<std::uint32_t> area_incidence_counts(mesh.vertices.size(), 0u);
         mesh.edges.reserve(edge_records.size() / 2u + 1u);
         mesh.bending.reserve(edge_records.size() / 2u + 1u);
         for (std::size_t record_begin = 0; record_begin < edge_records.size();)
