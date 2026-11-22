@@ -48,7 +48,7 @@ int main()
         require(near(animation.vertex_weights[0].weights[1], 0.75f), "Weight normalization failed.");
 
         std::vector<csp::skin_matrix> matrices;
-        csp::sample_skin_matrices(animation, 0.25f, matrices);
+        csp::sample_skin_matrices(animation, 0.125f, matrices);
         require(matrices.size() == 2u, "Sampled matrix count mismatch.");
         require(near(matrices[0][3], 0.5f), "Frame interpolation failed.");
         require(near(matrices[1][3], 2.5f), "Frame interpolation failed.");
