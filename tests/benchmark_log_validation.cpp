@@ -115,16 +115,16 @@ int main()
         "GPU total time must sum the four top-level GPU intervals");
     check(std::abs(parse_number(columns, 13) - 100.0) < 1.0e-9,
         "GPU FPS must be derived from total GPU time");
-    check(parse_number(columns, 11) == 200000.0, "particle count must be recorded");
-    check(parse_number(columns, 12) == 0.0, "tetrahedron count must be recorded");
-    check(parse_number(columns, 13) == 123456.0, "selected solver memory must be recorded");
-    check(parse_number(columns, 14) == 987654.0, "resident simulation memory must be recorded");
-    check(parse_number(columns, 15) == 4.0, "solver iteration count must be recorded");
-    check(std::abs(parse_number(columns, 16) - 0.8) < 1.0e-6,
+    check(parse_number(columns, 14) == 200000.0, "particle count must be recorded");
+    check(parse_number(columns, 15) == 0.0, "tetrahedron count must be recorded");
+    check(parse_number(columns, 16) == 123456.0, "selected solver memory must be recorded");
+    check(parse_number(columns, 17) == 987654.0, "resident simulation memory must be recorded");
+    check(parse_number(columns, 18) == 4.0, "solver iteration count must be recorded");
+    check(std::abs(parse_number(columns, 19) - 0.8) < 1.0e-6,
         "edge relaxation must be recorded");
-    check(std::abs(parse_number(columns, 22) - 0.10) < 1.0e-6,
+    check(std::abs(parse_number(columns, 25) - 0.10) < 1.0e-6,
         "contact band must be recorded");
-    check(std::abs(parse_number(columns, 23) - 0.08) < 1.0e-6,
+    check(std::abs(parse_number(columns, 26) - 0.08) < 1.0e-6,
         "cluster shape matching strength must be recorded");
 
     input.close();
