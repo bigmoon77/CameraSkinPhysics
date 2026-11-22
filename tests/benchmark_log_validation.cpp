@@ -59,7 +59,7 @@ int main()
 
     {
         csp::benchmark_log log(path);
-        log.write_frame(1, 10.0, 1.0, 0.25, 0.5, 2.0, 3.0, 4.0,
+        log.write_frame(1, 10.0, 1.0, 0.25, 0.05, 0.10, 0.10, 0.5, 2.0, 3.0, 4.0,
             200000, 0, 123456, 987654, 4, 0.8f, 0.008f, 0.012f, 0.006f, 0.12f, 0.18f, 0.10f, 0.08f);
     }
 
@@ -75,6 +75,12 @@ int main()
     check(header.find("cpu_fps") != std::string::npos, "CSV header must include CPU FPS");
     check(header.find("camera_constraint_solve_ms") != std::string::npos,
         "CSV header must include camera constraint solve time");
+    check(header.find("camera_edge_solve_ms") != std::string::npos,
+        "CSV header must include camera edge solve time");
+    check(header.find("camera_area_solve_ms") != std::string::npos,
+        "CSV header must include camera area solve time");
+    check(header.find("camera_bending_solve_ms") != std::string::npos,
+        "CSV header must include camera bending solve time");
     check(header.find("camera_gather_ms") != std::string::npos,
         "CSV header must include camera gather time");
     check(header.find("gpu_total_ms") != std::string::npos, "CSV header must include total GPU time");
@@ -91,17 +97,23 @@ int main()
     check(extra.empty(), "CSV must contain exactly one data row");
 
     const std::vector<std::string> columns = split_csv_line(row);
-    check(columns.size() == 24, "CSV data row must contain twenty-four columns");
+    check(columns.size() == 27, "CSV data row must contain twenty-seven columns");
     check(parse_number(columns, 0) == 1.0, "frame index must be recorded");
     check(std::abs(parse_number(columns, 2) - 100.0) < 1.0e-9,
         "CPU FPS must be derived from CPU frame time");
     check(std::abs(parse_number(columns, 4) - 0.25) < 1.0e-9,
         "camera constraint solve time must be recorded");
-    check(std::abs(parse_number(columns, 5) - 0.5) < 1.0e-9,
+    check(std::abs(parse_number(columns, 5) - 0.05) < 1.0e-9,
+        "camera edge solve time must be recorded");
+    check(std::abs(parse_number(columns, 6) - 0.10) < 1.0e-9,
+        "camera area solve time must be recorded");
+    check(std::abs(parse_number(columns, 7) - 0.10) < 1.0e-9,
+        "camera bending solve time must be recorded");
+    check(std::abs(parse_number(columns, 8) - 0.5) < 1.0e-9,
         "camera gather time must be recorded");
-    check(std::abs(parse_number(columns, 9) - 10.0) < 1.0e-9,
+    check(std::abs(parse_number(columns, 12) - 10.0) < 1.0e-9,
         "GPU total time must sum the four top-level GPU intervals");
-    check(std::abs(parse_number(columns, 10) - 100.0) < 1.0e-9,
+    check(std::abs(parse_number(columns, 13) - 100.0) < 1.0e-9,
         "GPU FPS must be derived from total GPU time");
     check(parse_number(columns, 11) == 200000.0, "particle count must be recorded");
     check(parse_number(columns, 12) == 0.0, "tetrahedron count must be recorded");
