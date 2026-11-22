@@ -1385,7 +1385,7 @@ namespace csp
                 const std::uint32_t gather_query = 21u + camera_dispatch_index * 2u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, gather_query);
                 dispatch_compute(compute_->camera_surface_gather_pipeline.Get(), gather_table,
-                    &gather_values, 4, particle_groups);
+                    &gather_values, 5, particle_groups);
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, gather_query + 1u);
                 ++camera_dispatch_index;
                 transition_resource(body.particles[particle_output].Get(),
