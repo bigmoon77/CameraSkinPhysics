@@ -73,7 +73,7 @@ namespace csp
 
     // Builds all surface constraints and adjacency from arbitrary indexed triangle geometry.
     // Vertices and indices must already be populated; triangle winding must be consistent
-    // for signed volume and signed dihedral angles to be meaningful.
+    // for signed volume to be meaningful.
     void build_surface_constraints(sphere_mesh& mesh,
         float edge_compliance = 2.0e-6f,
         float area_compliance = 1.0e-7f,
