@@ -189,10 +189,13 @@ namespace csp
         {
             std::uint32_t particle_count;
             float strength;
+            float bone_follow_strength;
             float max_correction;
             float delta_time;
+            float bone_center_x;
+            float padding[2];
         };
-        static_assert(sizeof(shape_apply_constants) == 16);
+        static_assert(sizeof(shape_apply_constants) == 32);
         static_assert(sizeof(DirectX::XMFLOAT4) * 3u == 48u);
 
         struct camera_collision_constants
@@ -1623,10 +1626,12 @@ namespace csp
                     compute_->vertex_count, sizeof(simulation_particle));
                 const shape_apply_constants shape_apply_values{
                     compute_->vertex_count, simulation_parameters_.shape_matching_strength,
-                    simulation_parameters_.max_correction, clamped_delta_time
+                    compute_->animation.frames.empty() ? 0.0f : simulation_parameters_.bone_follow_strength,
+                    simulation_parameters_.max_correction, clamped_delta_time,
+                    body.center_x, {0.0f, 0.0f}
                 };
                 dispatch_compute(compute_->camera_surface_shape_apply_pipeline.Get(),
-                    shape_apply_table, &shape_apply_values, 4, particle_groups);
+                    shape_apply_table, &shape_apply_values, 8, particle_groups);
                 transition_resource(body.particles[shape_output].Get(),
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                 body.particle_read = shape_output;
@@ -2028,6 +2033,7 @@ namespace csp
         simulation_parameters_.area_compliance = std::clamp(parameters.area_compliance, 1.0e-9f, 1.0e-2f);
         simulation_parameters_.bending_compliance = std::clamp(parameters.bending_compliance, 1.0e-9f, 1.0e-2f);
         simulation_parameters_.shape_matching_strength = std::clamp(parameters.shape_matching_strength, 0.0f, 1.0f);
+        simulation_parameters_.bone_follow_strength = std::clamp(parameters.bone_follow_strength, 0.0f, 1.0f);
         simulation_parameters_.max_correction = std::clamp(parameters.max_correction, 0.0001f, 0.05f);
         simulation_parameters_.particle_radius = std::clamp(parameters.particle_radius, 0.001f, 0.05f);
         simulation_parameters_.pushout = std::clamp(parameters.pushout, 0.0f, 0.03f);
