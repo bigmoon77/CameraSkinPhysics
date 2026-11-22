@@ -4,6 +4,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <commctrl.h>
+#include <array>
+#include <sstream>
+#include <iomanip>
 #include <cwchar>
 #include <exception>
 #include <string>
@@ -12,8 +16,148 @@
 namespace
 {
     constexpr wchar_t window_class_name[] = L"CameraSkinPhysicsWindow";
+    constexpr wchar_t parameter_window_class_name[] = L"CameraSkinPhysicsParameters";
+    constexpr int parameter_control_base = 100;
+    constexpr int parameter_reset_id = 200;
+    constexpr int parameter_count = 8;
+    HWND parameter_sliders[parameter_count]{};
+    HWND parameter_value_labels[parameter_count]{};
+    HWND parameter_window = nullptr;
     csp::d3d12_renderer* active_renderer = nullptr;
     bool benchmark_running = false;
+
+    struct parameter_description
+    {
+        const wchar_t* label;
+        float minimum;
+        float maximum;
+        float scale;
+        bool integer;
+    };
+
+    constexpr parameter_description parameter_descriptions[parameter_count] = {
+        {L"Solver iterations", 1.0f, 4.0f, 1.0f, true},
+        {L"Edge relaxation", 0.0f, 1.5f, 1000.0f, false},
+        {L"Max correction", 0.0001f, 0.05f, 100000.0f, false},
+        {L"Particle radius", 0.001f, 0.05f, 100000.0f, false},
+        {L"Pushout", 0.0f, 0.03f, 100000.0f, false},
+        {L"Velocity friction", 0.0f, 1.0f, 1000.0f, false},
+        {L"Restitution", 0.0f, 1.0f, 1000.0f, false},
+        {L"Contact band", 0.005f, 0.5f, 1000.0f, false}
+    };
+
+    float get_parameter_value(const csp::simulation_parameters& parameters, int index)
+    {
+        switch (index)
+        {
+        case 0: return static_cast<float>(parameters.solver_iterations);
+        case 1: return parameters.edge_relaxation;
+        case 2: return parameters.max_correction;
+        case 3: return parameters.particle_radius;
+        case 4: return parameters.pushout;
+        case 5: return parameters.velocity_friction;
+        case 6: return parameters.restitution;
+        default: return parameters.contact_band;
+        }
+    }
+
+    void set_parameter_value(csp::simulation_parameters& parameters, int index, float value)
+    {
+        switch (index)
+        {
+        case 0: parameters.solver_iterations = static_cast<std::uint32_t>(value); break;
+        case 1: parameters.edge_relaxation = value; break;
+        case 2: parameters.max_correction = value; break;
+        case 3: parameters.particle_radius = value; break;
+        case 4: parameters.pushout = value; break;
+        case 5: parameters.velocity_friction = value; break;
+        case 6: parameters.restitution = value; break;
+        default: parameters.contact_band = value; break;
+        }
+    }
+
+    void update_parameter_controls()
+    {
+        if (active_renderer == nullptr) return;
+        const csp::simulation_parameters parameters = active_renderer->get_simulation_parameters();
+        for (int index = 0; index < parameter_count; ++index)
+        {
+            const float value = get_parameter_value(parameters, index);
+            const parameter_description& description = parameter_descriptions[index];
+            const int position = static_cast<int>(std::lround(
+                (value - description.minimum) / (description.maximum - description.minimum) * 1000.0f));
+            SendMessageW(parameter_sliders[index], TBM_SETPOS, TRUE, position);
+            std::wostringstream text;
+            text << std::fixed << std::setprecision(index == 0 ? 0 : 4) << value;
+            SetWindowTextW(parameter_value_labels[index], text.str().c_str());
+        }
+    }
+
+    void apply_parameter_control(HWND slider)
+    {
+        if (active_renderer == nullptr || slider == nullptr) return;
+        const int index = GetDlgCtrlID(slider) - parameter_control_base;
+        if (index < 0 || index >= parameter_count) return;
+        const parameter_description& description = parameter_descriptions[index];
+        const int position = static_cast<int>(SendMessageW(slider, TBM_GETPOS, 0, 0));
+        const float normalized = static_cast<float>(position) / 1000.0f;
+        const float value = description.integer
+            ? std::round(description.minimum + normalized * (description.maximum - description.minimum))
+            : description.minimum + normalized * (description.maximum - description.minimum);
+        csp::simulation_parameters parameters = active_renderer->get_simulation_parameters();
+        set_parameter_value(parameters, index, value);
+        active_renderer->set_simulation_parameters(parameters);
+        update_parameter_controls();
+    }
+
+    LRESULT CALLBACK parameter_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
+    {
+        if (message == WM_CREATE)
+        {
+            for (int index = 0; index < parameter_count; ++index)
+            {
+                const int top = 18 + index * 76;
+                CreateWindowExW(0, L"STATIC", parameter_descriptions[index].label,
+                    WS_CHILD | WS_VISIBLE, 16, top, 210, 22, window, nullptr,
+                    GetModuleHandleW(nullptr), nullptr);
+                parameter_value_labels[index] = CreateWindowExW(0, L"STATIC", L"",
+                    WS_CHILD | WS_VISIBLE | SS_RIGHT, 250, top, 150, 22, window, nullptr,
+                    GetModuleHandleW(nullptr), nullptr);
+                parameter_sliders[index] = CreateWindowExW(0, TRACKBAR_CLASSW, L"",
+                    WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS,
+                    16, top + 24, 384, 38, window,
+                    reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_control_base + index)),
+                    GetModuleHandleW(nullptr), nullptr);
+                SendMessageW(parameter_sliders[index], TBM_SETRANGE, TRUE, MAKELONG(0, 1000));
+                SendMessageW(parameter_sliders[index], TBM_SETTICFREQ, 100, 0);
+            }
+            CreateWindowExW(0, L"BUTTON", L"Reset parameters",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                16, 18 + parameter_count * 76, 384, 32, window,
+                reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_reset_id)),
+                GetModuleHandleW(nullptr), nullptr);
+            update_parameter_controls();
+            return 0;
+        }
+        if (message == WM_HSCROLL)
+        {
+            apply_parameter_control(reinterpret_cast<HWND>(lparam));
+            return 0;
+        }
+        if (message == WM_COMMAND && LOWORD(wparam) == parameter_reset_id)
+        {
+            if (active_renderer != nullptr)
+                active_renderer->set_simulation_parameters(csp::simulation_parameters{});
+            update_parameter_controls();
+            return 0;
+        }
+        if (message == WM_CLOSE)
+        {
+            ShowWindow(window, SW_HIDE);
+            return 0;
+        }
+        return DefWindowProcW(window, message, wparam, lparam);
+    }
 
     void update_window_title(HWND window)
     {
