@@ -25,7 +25,6 @@ namespace csp
         constexpr std::uint32_t compute_uav_count = 2;
         constexpr std::uint32_t compute_table_size = compute_srv_count + compute_uav_count;
         constexpr std::uint32_t compute_descriptor_capacity = 4096;
-        constexpr std::uint32_t solver_iterations = 4;
 
         std::vector<char> read_binary_file(const std::filesystem::path& path)
         {
@@ -1011,7 +1010,7 @@ namespace csp
             body.particle_read = integration_output;
 
             std::uint32_t lambda_read = 0;
-            for (std::uint32_t iteration = 0; iteration < solver_iterations; ++iteration)
+            for (std::uint32_t iteration = 0; iteration < simulation_parameters_.solver_iterations; ++iteration)
             {
                 if (body.correction_is_srv)
                 {
@@ -1154,7 +1153,7 @@ namespace csp
                     compute_->edge_count, sizeof(float));
 
                 const tetrahedron_constants solve_constants{
-                    compute_->edge_count, clamped_delta_time, 0.8f, 0.0f
+                    compute_->edge_count, clamped_delta_time, simulation_parameters_.edge_relaxation, 0.0f
                 };
                 const std::uint32_t edge_query = 5u + camera_dispatch_index * 2u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, edge_query);
@@ -1187,7 +1186,7 @@ namespace csp
                     compute_->vertex_count, sizeof(simulation_particle));
 
                 const gather_constants gather_values{
-                    compute_->vertex_count, 0.008f, clamped_delta_time, 0.0f
+                    compute_->vertex_count, simulation_parameters_.max_correction, clamped_delta_time, 0.0f
                 };
                 const std::uint32_t gather_query = 21u + camera_dispatch_index * 2u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, gather_query);
@@ -1323,9 +1322,9 @@ namespace csp
         const std::uint64_t render_ticks = timestamps[4] - timestamps[3];
         std::uint64_t camera_edge_ticks = 0;
         std::uint64_t camera_gather_ticks = 0;
-        if (mode_index == 1u)
+        if (mode_index == 1u && !simulation_paused_)
         {
-            for (std::uint32_t dispatch_index = 0; dispatch_index < 8; ++dispatch_index)
+            for (std::uint32_t dispatch_index = 0; dispatch_index < simulation_parameters_.solver_iterations * 2u; ++dispatch_index)
             {
                 const std::uint32_t edge_query = 5u + dispatch_index * 2u;
                 const std::uint32_t gather_query = 21u + dispatch_index * 2u;
@@ -1334,6 +1333,16 @@ namespace csp
             }
         }
         const double ticks_to_ms = 1000.0 / static_cast<double>(timestamp_frequency_);
+        performance_metrics_.cpu_frame_ms = cpu_frame_ms;
+        performance_metrics_.gpu_simulation_ms = static_cast<double>(simulation_ticks) * ticks_to_ms;
+        performance_metrics_.camera_edge_solve_ms = static_cast<double>(camera_edge_ticks) * ticks_to_ms;
+        performance_metrics_.camera_gather_ms = static_cast<double>(camera_gather_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_depth_capture_ms = static_cast<double>(capture_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_collision_ms = static_cast<double>(collision_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_render_ms = static_cast<double>(render_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_total_ms = performance_metrics_.gpu_simulation_ms
+            + performance_metrics_.gpu_depth_capture_ms + performance_metrics_.gpu_collision_ms
+            + performance_metrics_.gpu_render_ms;
         const std::uint64_t particle_count =
             (mode_index == 1u ? compute_->vertex_count : compute_->particle_count) * 2ull;
         const std::uint64_t tetrahedron_count =
@@ -1349,7 +1358,11 @@ namespace csp
             static_cast<double>(render_ticks) * ticks_to_ms,
             particle_count, tetrahedron_count,
             mode_index == 1u ? compute_->camera_surface_buffer_bytes : compute_->tetrahedral_buffer_bytes,
-            compute_->resident_simulation_buffer_bytes);
+            compute_->resident_simulation_buffer_bytes,
+            simulation_parameters_.solver_iterations, simulation_parameters_.edge_relaxation,
+            simulation_parameters_.max_correction, simulation_parameters_.particle_radius,
+            simulation_parameters_.pushout, simulation_parameters_.velocity_friction,
+            simulation_parameters_.restitution, simulation_parameters_.contact_band);
 
         const D3D12_RANGE written_range{0, 0};
         timestamp_readback_->Unmap(0, &written_range);
@@ -1367,105 +1380,114 @@ namespace csp
             throw std::runtime_error("Command list reset failed.");
 
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 0);
-        if (use_camera_surface)
+        if (!simulation_paused_)
         {
-            simulate_camera_surface(delta_time);
-            skin_camera_body(0);
-            skin_camera_body(1);
-        }
-        else
-        {
-            simulate_volume(delta_time);
-            skin_body(0);
-            skin_body(1);
-        }
-        command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
-
-        capture_body(0, 1);
-        capture_body(1, 0);
-        command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 2);
-
-        using namespace DirectX;
-        for (std::uint32_t body_index = 0; body_index < 2; ++body_index)
-        {
-            const XMVECTOR collision_eye = body_index == 0
-                ? XMVectorSet(-6.0f, 0.0f, 0.0f, 1.0f)
-                : XMVectorSet(6.0f, 0.0f, 0.0f, 1.0f);
-            const XMMATRIX collision_view = XMMatrixLookAtLH(collision_eye, XMVectorZero(),
-                XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-            const XMMATRIX collision_projection = XMMatrixOrthographicLH(4.8f, 4.8f, 0.1f, 20.0f);
-            const XMMATRIX collision_view_projection = collision_view * collision_projection;
-            XMVECTOR determinant{};
-            const XMMATRIX inverse_view_projection = XMMatrixInverse(&determinant, collision_view_projection);
-
-            camera_collision_constants collision_constants{};
-            XMStoreFloat4x4(&collision_constants.view_projection, collision_view_projection);
-            XMStoreFloat4x4(&collision_constants.inverse_view_projection, inverse_view_projection);
-            collision_constants.particle_count =
-                use_camera_surface ? compute_->vertex_count : compute_->particle_count;
-            collision_constants.viewport_width = capture_size;
-            collision_constants.viewport_height = capture_size;
-            collision_constants.particle_radius = use_camera_surface ? 0.012f : 0.035f;
-            collision_constants.pushout = use_camera_surface ? 0.006f : 0.012f;
-            collision_constants.velocity_friction = 0.12f;
-            collision_constants.restitution = 0.18f;
-            collision_constants.contact_band = use_camera_surface ? 0.10f : 0.16f;
-
-            ID3D12Resource* input_particles = nullptr;
-            ID3D12Resource* output_particles = nullptr;
-            std::uint32_t* particle_read = nullptr;
             if (use_camera_surface)
             {
-                compute_state::camera_gpu_body& body = compute_->camera_bodies[body_index];
-                particle_read = &body.particle_read;
-                input_particles = body.particles[body.particle_read].Get();
-                output_particles = body.particles[1u - body.particle_read].Get();
+                simulate_camera_surface(delta_time);
+                skin_camera_body(0);
+                skin_camera_body(1);
             }
             else
             {
-                compute_state::gpu_body& body = compute_->bodies[body_index];
-                particle_read = &body.particle_read;
-                input_particles = body.particles[body.particle_read].Get();
-                output_particles = body.particles[1u - body.particle_read].Get();
+                simulate_volume(delta_time);
+                skin_body(0);
+                skin_body(1);
+            }
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
+
+            capture_body(0, 1);
+            capture_body(1, 0);
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 2);
+
+            using namespace DirectX;
+            for (std::uint32_t body_index = 0; body_index < 2; ++body_index)
+            {
+                const XMVECTOR collision_eye = body_index == 0
+                    ? XMVectorSet(-6.0f, 0.0f, 0.0f, 1.0f)
+                    : XMVectorSet(6.0f, 0.0f, 0.0f, 1.0f);
+                const XMMATRIX collision_view = XMMatrixLookAtLH(collision_eye, XMVectorZero(),
+                    XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+                const XMMATRIX collision_projection = XMMatrixOrthographicLH(4.8f, 4.8f, 0.1f, 20.0f);
+                const XMMATRIX collision_view_projection = collision_view * collision_projection;
+                XMVECTOR determinant{};
+                const XMMATRIX inverse_view_projection = XMMatrixInverse(&determinant, collision_view_projection);
+
+                camera_collision_constants collision_constants{};
+                XMStoreFloat4x4(&collision_constants.view_projection, collision_view_projection);
+                XMStoreFloat4x4(&collision_constants.inverse_view_projection, inverse_view_projection);
+                collision_constants.particle_count =
+                    use_camera_surface ? compute_->vertex_count : compute_->particle_count;
+                collision_constants.viewport_width = capture_size;
+                collision_constants.viewport_height = capture_size;
+                collision_constants.particle_radius = use_camera_surface ? simulation_parameters_.particle_radius : 0.035f;
+                collision_constants.pushout = use_camera_surface ? simulation_parameters_.pushout : 0.012f;
+                collision_constants.velocity_friction = use_camera_surface ? simulation_parameters_.velocity_friction : 0.12f;
+                collision_constants.restitution = use_camera_surface ? simulation_parameters_.restitution : 0.18f;
+                collision_constants.contact_band = use_camera_surface ? simulation_parameters_.contact_band : 0.16f;
+
+                ID3D12Resource* input_particles = nullptr;
+                ID3D12Resource* output_particles = nullptr;
+                std::uint32_t* particle_read = nullptr;
+                if (use_camera_surface)
+                {
+                    compute_state::camera_gpu_body& body = compute_->camera_bodies[body_index];
+                    particle_read = &body.particle_read;
+                    input_particles = body.particles[body.particle_read].Get();
+                    output_particles = body.particles[1u - body.particle_read].Get();
+                }
+                else
+                {
+                    compute_state::gpu_body& body = compute_->bodies[body_index];
+                    particle_read = &body.particle_read;
+                    input_particles = body.particles[body.particle_read].Get();
+                    output_particles = body.particles[1u - body.particle_read].Get();
+                }
+
+                transition_resource(output_particles,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                const std::uint32_t table = reserve_descriptor_table();
+                clear_descriptor_table(table);
+                write_texture_srv(table, 0, capture_depth_[body_index].Get(), DXGI_FORMAT_R32_FLOAT);
+                write_texture_srv(table, 1, capture_normal_[body_index].Get(), DXGI_FORMAT_R16G16B16A16_FLOAT);
+                write_buffer_srv(table, 2, input_particles,
+                    collision_constants.particle_count, sizeof(simulation_particle));
+                write_buffer_uav(table, 0, output_particles,
+                    collision_constants.particle_count, sizeof(simulation_particle));
+                dispatch_compute(compute_->camera_collision_pipeline.Get(), table,
+                    &collision_constants, 40,
+                    (collision_constants.particle_count + 255u) / 256u);
+                transition_resource(output_particles,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                *particle_read = 1u - *particle_read;
             }
 
-            transition_resource(output_particles,
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-            const std::uint32_t table = reserve_descriptor_table();
-            clear_descriptor_table(table);
-            write_texture_srv(table, 0, capture_depth_[body_index].Get(), DXGI_FORMAT_R32_FLOAT);
-            write_texture_srv(table, 1, capture_normal_[body_index].Get(), DXGI_FORMAT_R16G16B16A16_FLOAT);
-            write_buffer_srv(table, 2, input_particles,
-                collision_constants.particle_count, sizeof(simulation_particle));
-            write_buffer_uav(table, 0, output_particles,
-                collision_constants.particle_count, sizeof(simulation_particle));
-            dispatch_compute(compute_->camera_collision_pipeline.Get(), table,
-                &collision_constants, 40,
-                (collision_constants.particle_count + 255u) / 256u);
-            transition_resource(output_particles,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            *particle_read = 1u - *particle_read;
-        }
+            for (std::uint32_t capture_index = 0; capture_index < capture_count; ++capture_index)
+            {
+                transition_resource(capture_normal_[capture_index].Get(),
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+                transition_resource(capture_depth_[capture_index].Get(),
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+            }
 
-        for (std::uint32_t capture_index = 0; capture_index < capture_count; ++capture_index)
-        {
-            transition_resource(capture_normal_[capture_index].Get(),
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-            transition_resource(capture_depth_[capture_index].Get(),
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-        }
-
-        if (use_camera_surface)
-        {
-            skin_camera_body(0);
-            skin_camera_body(1);
+            if (use_camera_surface)
+            {
+                skin_camera_body(0);
+                skin_camera_body(1);
+            }
+            else
+            {
+                skin_body(0);
+                skin_body(1);
+            }
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 3);
         }
         else
         {
-            skin_body(0);
-            skin_body(1);
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 2);
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 3);
         }
-        command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 3);
 
         D3D12_RESOURCE_BARRIER back_buffer_barrier{};
         back_buffer_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -1555,6 +1577,38 @@ namespace csp
     solver_mode d3d12_renderer::get_solver_mode() const
     {
         return solver_mode_;
+    }
+
+    void d3d12_renderer::set_simulation_parameters(const simulation_parameters& parameters)
+    {
+        simulation_parameters_.solver_iterations = std::clamp(parameters.solver_iterations, 1u, 4u);
+        simulation_parameters_.edge_relaxation = std::clamp(parameters.edge_relaxation, 0.0f, 1.5f);
+        simulation_parameters_.max_correction = std::clamp(parameters.max_correction, 0.0001f, 0.05f);
+        simulation_parameters_.particle_radius = std::clamp(parameters.particle_radius, 0.001f, 0.05f);
+        simulation_parameters_.pushout = std::clamp(parameters.pushout, 0.0f, 0.03f);
+        simulation_parameters_.velocity_friction = std::clamp(parameters.velocity_friction, 0.0f, 1.0f);
+        simulation_parameters_.restitution = std::clamp(parameters.restitution, 0.0f, 1.0f);
+        simulation_parameters_.contact_band = std::clamp(parameters.contact_band, 0.005f, 0.5f);
+    }
+
+    simulation_parameters d3d12_renderer::get_simulation_parameters() const
+    {
+        return simulation_parameters_;
+    }
+
+    performance_metrics d3d12_renderer::get_performance_metrics() const
+    {
+        return performance_metrics_;
+    }
+
+    void d3d12_renderer::set_simulation_paused(bool paused)
+    {
+        simulation_paused_ = paused;
+    }
+
+    bool d3d12_renderer::is_simulation_paused() const
+    {
+        return simulation_paused_;
     }
 
     void d3d12_renderer::wait_gpu()

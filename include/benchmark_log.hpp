@@ -20,7 +20,10 @@ namespace csp
             std::uint64_t simulation_particle_count,
             std::uint64_t tetrahedron_count,
             std::uint64_t solver_buffer_bytes,
-            std::uint64_t resident_simulation_buffer_bytes);
+            std::uint64_t resident_simulation_buffer_bytes,
+            std::uint32_t solver_iterations, float edge_relaxation,
+            float max_correction, float particle_radius, float pushout,
+            float velocity_friction, float restitution, float contact_band);
 
     private:
         std::ofstream stream_;

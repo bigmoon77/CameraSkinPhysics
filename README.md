@@ -16,6 +16,21 @@ Each mode owns independent particle state. Switching to a mode for the first tim
 |---|---|
 | F1 | Tetrahedral XPBD mode |
 | F2 | Camera-surface mode |
+| F3 | Show/hide the live parameter panel |
+
+## Live parameter controls
+
+The application opens a separate **Live Parameters** window. Use **F3** to show or hide it. Trackbars apply changes immediately to subsequent GPU dispatches. The panel also provides **Pause simulation / Resume simulation** and **Reset parameters** controls. While paused, the last deformed pose remains visible and the GPU simulation, contact and skinning dispatches are skipped.
+
+- Solver iterations: 1–4. The upper bound currently matches the timestamp-query layout.
+- Edge relaxation: 0.0–1.5.
+- Gather max correction: 0.0001–0.05.
+- Camera-surface particle radius: 0.001–0.05.
+- Camera-surface pushout: 0.0–0.03.
+- Camera-surface velocity friction and restitution: 0.0–1.0.
+- Camera-surface contact band: 0.005–0.5.
+
+The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, edge-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
 
 ## Current implementation
 
@@ -30,7 +45,7 @@ Each mode owns independent particle state. Switching to a mode for the first tim
   - `output/benchmark_xpbd.csv`
   - `output/benchmark_camera_surface.csv`
 
-Each CSV contains per-frame CPU frame time/FPS, GPU simulation, capture, collision/skin, render intervals, total GPU time/FPS, particle count and tetrahedron count. The camera-surface run records zero tetrahedra because it has no tetrahedral volume mesh. The first timestamp interval includes solver passes and the initial skinning dispatch; the collision interval includes contact correction and the final skinning dispatch.
+Each CSV contains per-frame CPU frame time/FPS, GPU simulation, capture, collision/skin, render intervals, total GPU time/FPS, particle count and tetrahedron count. It also records the active runtime settings on every row: solver iterations, edge relaxation, gather max correction, particle radius, pushout, velocity friction, restitution and contact band. The camera-surface run records zero tetrahedra because it has no tetrahedral volume mesh. The first timestamp interval includes solver passes and the initial skinning dispatch; the collision interval includes contact correction and the final skinning dispatch.
 
 The memory columns report the allocated simulation-buffer sizes for the selected solver and for both solvers resident in the process. These are sums of the D3D12 buffer resource widths created for the simulation. Read-only topology buffers use upload heaps, so this is a resource-size accounting metric, not a measurement of dedicated VRAM residency. It excludes shared graphics resources such as swap-chain buffers, depth/normal capture textures, the render index buffer, descriptor heaps and driver/runtime allocations.
 
