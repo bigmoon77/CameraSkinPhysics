@@ -105,7 +105,7 @@ namespace
             << L"CPU " << metrics.cpu_frame_ms << L" ms    GPU " << metrics.gpu_total_ms << L" ms\n"
             << L"Simulation " << metrics.gpu_simulation_ms << L" ms    Collision "
             << metrics.gpu_collision_ms << L" ms    Render " << metrics.gpu_render_ms << L" ms\n"
-            << L"Edge Solve " << metrics.camera_constraint_solve_ms << L" ms    Gather "
+            << L"Edge/Area Solve " << metrics.camera_constraint_solve_ms << L" ms    Gather "
             << metrics.camera_gather_ms << L" ms";
         SetWindowTextW(performance_label, text.str().c_str());
     }
