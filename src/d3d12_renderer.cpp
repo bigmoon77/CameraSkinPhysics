@@ -693,7 +693,6 @@ namespace csp
             || surface_mesh.incident_corrections.size() != surface_mesh.edges.size() * 2
             || surface_mesh.triangle_incidence_ranges.size() != surface_mesh.vertices.size()
             || surface_mesh.incident_triangle_corners.size() != surface_mesh.triangle_areas.size() * 3
-            || compute_->bending_count == 0
             || surface_mesh.bending_incidence_ranges.size() != surface_mesh.vertices.size()
             || surface_mesh.incident_bending_corners.size() != surface_mesh.bending.size() * 4)
             return false;
@@ -722,9 +721,13 @@ namespace csp
         compute_->surface_triangle_areas = upload_vector(surface_mesh.triangle_areas);
         compute_->surface_triangle_ranges = upload_vector(surface_mesh.triangle_incidence_ranges);
         compute_->incident_surface_triangles = upload_vector(surface_mesh.incident_triangle_corners);
-        compute_->surface_bending = upload_vector(surface_mesh.bending);
+        std::vector<bending_constraint> bending_upload = surface_mesh.bending;
+        if (bending_upload.empty()) bending_upload.emplace_back();
+        std::vector<std::uint32_t> incident_bending_upload = surface_mesh.incident_bending_corners;
+        if (incident_bending_upload.empty()) incident_bending_upload.push_back(0u);
+        compute_->surface_bending = upload_vector(bending_upload);
         compute_->surface_bending_ranges = upload_vector(surface_mesh.bending_incidence_ranges);
-        compute_->incident_surface_bending = upload_vector(surface_mesh.incident_bending_corners);
+        compute_->incident_surface_bending = upload_vector(incident_bending_upload);
 
         if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra
             || !compute_->incidence_ranges || !compute_->incident_tetrahedra
