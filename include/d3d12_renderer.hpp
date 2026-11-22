@@ -42,6 +42,9 @@ namespace csp
         double cpu_frame_ms = 0.0;
         double gpu_simulation_ms = 0.0;
         double camera_constraint_solve_ms = 0.0;
+        double camera_edge_solve_ms = 0.0;
+        double camera_area_solve_ms = 0.0;
+        double camera_bending_solve_ms = 0.0;
         double camera_gather_ms = 0.0;
         double gpu_depth_capture_ms = 0.0;
         double gpu_collision_ms = 0.0;
