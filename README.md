@@ -29,6 +29,7 @@ Each mode owns independent particle state. Switching to a mode for the first tim
 - 接触時の押し出し量: 0.0–0.03。
 - 接触時の摩擦と反発係数: 0.0–1.0。
 - 接触判定の幅: 0.005–0.5。
+- エッジ長・面積・曲げのコンプライアンス: それぞれ独立して調整可能。スライダーは対数目盛で、値が小さいほど硬く、大きいほど柔らかくなります。初期値はエッジ長 2e-6、面積 1e-7、曲げ 2e-4 です。
 
 The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, combined surface-constraint-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
 
