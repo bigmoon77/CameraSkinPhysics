@@ -666,6 +666,25 @@ scene.frame_set(original_frame)
         SetWindowTextW(window, title.c_str());
     }
 
+    std::uint32_t parse_capture_resolution(PCWSTR command_line)
+    {
+        if (command_line == nullptr) return 1024u;
+        const std::wstring arguments(command_line);
+        const std::wstring option = L"--capture-resolution=";
+        const std::size_t option_position = arguments.find(option);
+        if (option_position == std::wstring::npos) return 1024u;
+
+        wchar_t* end = nullptr;
+        const unsigned long requested = std::wcstoul(
+            arguments.c_str() + option_position + option.size(), &end, 10);
+        if (end == arguments.c_str() + option_position + option.size())
+            return 1024u;
+        if (requested == 256u || requested == 512u
+            || requested == 1024u || requested == 2048u)
+            return static_cast<std::uint32_t>(requested);
+        return 1024u;
+    }
+
     std::uint32_t parse_benchmark_frame_count(PCWSTR command_line)
     {
         if (command_line == nullptr) return 0;
@@ -813,6 +832,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
             return -1;
         }
 
+        renderer.set_capture_resolution(parse_capture_resolution(command_line));
         if (custom_model_loaded) renderer.set_solver_mode(csp::solver_mode::camera_surface);
         active_renderer = &renderer;
         update_window_title(window);
