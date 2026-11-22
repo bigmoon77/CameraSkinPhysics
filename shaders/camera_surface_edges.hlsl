@@ -42,7 +42,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     {
         g_lambda_out[edge_index] = old_lambda;
         g_edge_corrections[edge_index * 2 + 0] = float3(0.0f, 0.0f, 0.0f);
-        g_edge_corrections[edge_index * 2 + 1] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+        g_edge_corrections[edge_index * 2 + 1] = float3(0.0f, 0.0f, 0.0f);
         return;
     }
 
