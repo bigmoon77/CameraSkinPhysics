@@ -30,7 +30,6 @@ namespace csp
         std::vector<surface_edge> edges;
         std::vector<mesh_uint2> edge_incidence_ranges;
         std::vector<std::uint32_t> incident_corrections;
-        std::vector<std::uint32_t> gather_vertex_indices;
     };
 
     static_assert(sizeof(vertex) == 24);
