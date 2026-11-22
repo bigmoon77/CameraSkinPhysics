@@ -336,7 +336,7 @@ with open(skin_path, "w", encoding="utf-8") as skin_file:
     skin_file.write("BONES\n")
     for bone in bones:
         parent_index = bone_indices[bone.parent.name] if bone.parent is not None else -1
-        skin_file.write("%s %d\n" % (repr(bone.name), parent_index))
+        skin_file.write("%s %d\n" % (json.dumps(bone.name, ensure_ascii=False), parent_index))
     skin_file.write("WEIGHTS\n")
     for influences in vertex_weights:
         skin_file.write(" ".join("%d %.9g" % item for item in influences) + "\n")
