@@ -1,5 +1,6 @@
 #pragma once
 #include "sphere_mesh.hpp"
+#include "skinned_animation.hpp"
 #include "tetrahedral_mesh.hpp"
 #include <array>
 #include <cstdint>
@@ -56,7 +57,8 @@ namespace csp
         d3d12_renderer& operator=(const d3d12_renderer&) = delete;
 
         bool initialize(HWND window, std::uint32_t width, std::uint32_t height,
-            const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh);
+            const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh,
+            const skeletal_animation* animation = nullptr);
         void render(float delta_time);
         void set_solver_mode(solver_mode mode);
         solver_mode get_solver_mode() const;
@@ -79,7 +81,8 @@ namespace csp
         bool create_depth_buffer();
         bool create_sphere_pipeline();
         bool create_capture_pipeline();
-        bool create_compute_resources(const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh);
+        bool create_compute_resources(const sphere_mesh& surface_mesh, const tetrahedral_mesh& volume_mesh,
+            const skeletal_animation* animation);
         bool create_compute_pipelines();
 
         std::uint32_t reserve_descriptor_table();
@@ -96,6 +99,7 @@ namespace csp
             D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
         void simulate_volume(float delta_time);
         void simulate_camera_surface(float delta_time);
+        void update_skeletal_pose(float delta_time);
         void skin_body(std::uint32_t body_index);
         void skin_camera_body(std::uint32_t body_index);
         void capture_body(std::uint32_t capture_index, std::uint32_t body_index);
