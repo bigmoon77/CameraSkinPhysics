@@ -51,9 +51,9 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     for (uint offset = 0; offset < bending_range.y; ++offset)
     {
         const uint hinge_corner = g_incident_bending_corners[bending_range.x + offset];
-        const uint hinge_index = hinge_corner >> 2u;
-        const uint corner_index = hinge_corner & 3u;
-        const uint correction_index = edge_count + triangle_count * 3u + hinge_index * 4u + corner_index;
+        const uint hinge_index = hinge_corner >> 1u;
+        const uint opposite_index = hinge_corner & 1u;
+        const uint correction_index = edge_count + triangle_count * 3u + hinge_index * 2u + opposite_index;
         correction += g_surface_corrections[correction_index];
     }
 
