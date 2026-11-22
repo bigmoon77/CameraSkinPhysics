@@ -118,7 +118,7 @@ namespace
         const csp::performance_metrics metrics = active_renderer->get_performance_metrics();
         std::wostringstream text;
         text << std::fixed << std::setprecision(2)
-            << L"\\u525b\\u6027\\u8abf\\u6574: Compliance\\u306f\\u5024\\u304c\\u5c0f\\u3055\\u3044\\u307b\\u3069\\u786c\\u3044\\n"
+            << L"\u525b\u6027\u8abf\u6574: Compliance\u306f\u5024\u304c\u5c0f\u3055\u3044\u307b\u3069\u786c\u3044\n"
             << L"CPU\u30d5\u30ec\u30fc\u30e0 " << metrics.cpu_frame_ms << L" ms    GPU\u5408\u8a08 " << metrics.gpu_total_ms << L" ms\n"
             << L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3 " << metrics.gpu_simulation_ms << L" ms    \u63a5\u89e6\u51e6\u7406 "
             << metrics.gpu_collision_ms << L" ms    \u63cf\u753b " << metrics.gpu_render_ms << L" ms\n"
