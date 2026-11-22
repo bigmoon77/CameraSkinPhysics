@@ -11,6 +11,8 @@
 
 namespace csp
 {
+    inline constexpr std::uint32_t max_solver_iterations = 16;
+
     enum class solver_mode
     {
         tetrahedral_xpbd,
