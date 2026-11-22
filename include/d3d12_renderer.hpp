@@ -23,6 +23,9 @@ namespace csp
     {
         std::uint32_t solver_iterations = 4;
         float edge_relaxation = 0.8f;
+        float edge_compliance = 2.0e-6f;
+        float area_compliance = 1.0e-7f;
+        float bending_compliance = 2.0e-4f;
         float max_correction = 0.008f;
         float particle_radius = 0.012f;
         float pushout = 0.006f;
