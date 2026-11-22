@@ -39,14 +39,14 @@ namespace
     };
 
     constexpr parameter_description parameter_descriptions[parameter_count] = {
-        {L"Solver iterations", 1.0f, 4.0f, true},
-        {L"Camera edge relaxation", 0.0f, 1.5f, false},
-        {L"Gather max correction", 0.0001f, 0.05f, false},
-        {L"Camera particle radius", 0.001f, 0.05f, false},
-        {L"Camera pushout", 0.0f, 0.03f, false},
-        {L"Camera velocity friction", 0.0f, 1.0f, false},
-        {L"Camera restitution", 0.0f, 1.0f, false},
-        {L"Camera contact band", 0.005f, 0.5f, false}
+        {L"反復回数", 1.0f, static_cast<float>(csp::max_solver_iterations), true},
+        {L"エッジ制約の緩和率", 0.0f, 1.5f, false},
+        {L"補正量の上限", 0.0001f, 0.05f, false},
+        {L"粒子の半径", 0.001f, 0.05f, false},
+        {L"接触時の押し出し量", 0.0f, 0.03f, false},
+        {L"接触時の摩擦", 0.0f, 1.0f, false},
+        {L"反発係数", 0.0f, 1.0f, false},
+        {L"接触判定の幅", 0.005f, 0.5f, false}
     };
 
     float get_parameter_value(const csp::simulation_parameters& parameters, int index)
@@ -102,10 +102,10 @@ namespace
         const csp::performance_metrics metrics = active_renderer->get_performance_metrics();
         std::wostringstream text;
         text << std::fixed << std::setprecision(2)
-            << L"CPU " << metrics.cpu_frame_ms << L" ms    GPU " << metrics.gpu_total_ms << L" ms\n"
-            << L"Simulation " << metrics.gpu_simulation_ms << L" ms    Collision "
-            << metrics.gpu_collision_ms << L" ms    Render " << metrics.gpu_render_ms << L" ms\n"
-            << L"Surface Constraints " << metrics.camera_constraint_solve_ms << L" ms    Gather "
+            << L"CPUフレーム " << metrics.cpu_frame_ms << L" ms    GPU合計 " << metrics.gpu_total_ms << L" ms\n"
+            << L"シミュレーション " << metrics.gpu_simulation_ms << L" ms    接触処理 "
+            << metrics.gpu_collision_ms << L" ms    描画 " << metrics.gpu_render_ms << L" ms\n"
+            << L"制約計算 " << metrics.camera_constraint_solve_ms << L" ms    補正集約 "
             << metrics.camera_gather_ms << L" ms";
         SetWindowTextW(performance_label, text.str().c_str());
     }
@@ -148,12 +148,12 @@ namespace
                 SendMessageW(parameter_sliders[index], TBM_SETRANGE, TRUE, MAKELONG(0, 1000));
                 SendMessageW(parameter_sliders[index], TBM_SETTICFREQ, 100, 0);
             }
-            CreateWindowExW(0, L"BUTTON", L"Reset parameters",
+            CreateWindowExW(0, L"BUTTON", L"パラメータを初期化",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                 16, 18 + parameter_count * 76, 186, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_reset_id)),
                 GetModuleHandleW(nullptr), nullptr);
-            pause_button = CreateWindowExW(0, L"BUTTON", L"Pause simulation",
+            pause_button = CreateWindowExW(0, L"BUTTON", L"シミュレーションを一時停止",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                 214, 18 + parameter_count * 76, 186, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_pause_id)),
@@ -183,7 +183,7 @@ namespace
             {
                 active_renderer->set_simulation_paused(!active_renderer->is_simulation_paused());
                 SetWindowTextW(pause_button, active_renderer->is_simulation_paused()
-                    ? L"Resume simulation" : L"Pause simulation");
+                    ? L"シミュレーションを再開" : L"Pause simulation");
             }
             return 0;
         }
@@ -199,10 +199,10 @@ namespace
     {
         if (active_renderer == nullptr) return;
         const wchar_t* mode_name = active_renderer->get_solver_mode() == csp::solver_mode::camera_surface
-            ? L"Camera surface particles"
-            : L"Tetrahedral XPBD";
+            ? L"表面粒子 XPBD"
+            : L"四面体 XPBD";
         const std::wstring title = std::wstring(L"CameraSkinPhysics | ") + mode_name
-            + L" | F1: XPBD  F2: Camera surface  F3: Parameters | benchmark in output/";
+            + L" | F1: 四面体 XPBD  F2: 表面粒子  F3: パラメータ | output/ に計測結果";
         SetWindowTextW(window, title.c_str());
     }
 
@@ -295,7 +295,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     const DWORD window_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     AdjustWindowRect(&window_rect, window_style, FALSE);
     HWND window = CreateWindowExW(0, window_class_name,
-        L"CameraSkinPhysics - GPU Soft Body Comparison",
+        L"CameraSkinPhysics - GPUソフトボディ比較",
         window_style, CW_USEDEFAULT, CW_USEDEFAULT,
         window_rect.right - window_rect.left, window_rect.bottom - window_rect.top,
         nullptr, nullptr, instance, nullptr);
@@ -309,7 +309,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
             || surface_mesh.incident_corrections.size() != 599988)
         {
-            MessageBoxW(window, L"Sphere surface topology validation failed.", L"CameraSkinPhysics",
+            MessageBoxW(window, L"球体表面のトポロジー検証に失敗しました。", L"CameraSkinPhysics",
                 MB_ICONERROR | MB_OK);
             return -1;
         }
@@ -324,7 +324,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
             surface_mesh, volume_mesh))
         {
             MessageBoxW(window,
-                L"Direct3D 12 initialization failed. Check the GPU driver and DXC shader build.",
+                L"Direct3D 12の初期化に失敗しました。GPUドライバーとDXCによるシェーダー生成を確認してください。",
                 L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
             return -1;
         }
@@ -332,7 +332,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         active_renderer = &renderer;
         update_window_title(window);
         parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
-            parameter_window_class_name, L"CameraSkinPhysics | Live Parameters",
+            parameter_window_class_name, L"CameraSkinPhysics | パラメータ",
             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
             CW_USEDEFAULT, CW_USEDEFAULT, 440, 18 + parameter_count * 76 + 105,
             window, nullptr, instance, nullptr);
