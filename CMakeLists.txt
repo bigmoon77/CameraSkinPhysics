@@ -26,6 +26,10 @@ if(CSP_BUILD_TESTS)
     target_link_libraries(CameraSkinPhysicsTests PRIVATE CameraSkinPhysicsCore)
     add_test(NAME CameraSkinPhysics.MeshValidation COMMAND CameraSkinPhysicsTests)
 
+    add_executable(CameraSkinPhysicsObjTests tests/obj_mesh_validation.cpp)
+    target_link_libraries(CameraSkinPhysicsObjTests PRIVATE CameraSkinPhysicsCore)
+    add_test(NAME CameraSkinPhysics.ObjMeshValidation COMMAND CameraSkinPhysicsObjTests)
+
     add_executable(CameraSkinPhysicsBenchmarkLogTests tests/benchmark_log_validation.cpp)
     target_link_libraries(CameraSkinPhysicsBenchmarkLogTests PRIVATE CameraSkinPhysicsCore)
     add_test(NAME CameraSkinPhysics.BenchmarkLogValidation COMMAND CameraSkinPhysicsBenchmarkLogTests)
