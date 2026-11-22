@@ -2180,6 +2180,63 @@ namespace csp
         return simulation_paused_;
     }
 
+    bool d3d12_renderer::set_capture_resolution(std::uint32_t resolution)
+    {
+        if (resolution != 256u && resolution != 512u
+            && resolution != 1024u && resolution != 2048u)
+            return false;
+        if (resolution == capture_size_)
+            return true;
+
+        wait_gpu();
+
+        const std::uint32_t previous_resolution = capture_size_;
+        const std::uint32_t previous_rtv_descriptor_size = capture_rtv_descriptor_size_;
+        const std::uint32_t previous_dsv_descriptor_size = capture_dsv_descriptor_size_;
+        const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> previous_rtv_heap = capture_rtv_heap_;
+        const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> previous_dsv_heap = capture_dsv_heap_;
+        const std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, capture_count> previous_normal = capture_normal_;
+        const std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, capture_count> previous_depth = capture_depth_;
+
+        capture_rtv_heap_.Reset();
+        capture_dsv_heap_.Reset();
+        for (std::uint32_t index = 0; index < capture_count; ++index)
+        {
+            capture_normal_[index].Reset();
+            capture_depth_[index].Reset();
+        }
+
+        capture_size_ = resolution;
+        try
+        {
+            create_capture_targets();
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            capture_rtv_heap_.Reset();
+            capture_dsv_heap_.Reset();
+            for (std::uint32_t index = 0; index < capture_count; ++index)
+            {
+                capture_normal_[index].Reset();
+                capture_depth_[index].Reset();
+            }
+            capture_size_ = previous_resolution;
+            capture_rtv_descriptor_size_ = previous_rtv_descriptor_size;
+            capture_dsv_descriptor_size_ = previous_dsv_descriptor_size;
+            capture_rtv_heap_ = previous_rtv_heap;
+            capture_dsv_heap_ = previous_dsv_heap;
+            capture_normal_ = previous_normal;
+            capture_depth_ = previous_depth;
+            return false;
+        }
+    }
+
+    std::uint32_t d3d12_renderer::get_capture_resolution() const
+    {
+        return capture_size_;
+    }
+
     void d3d12_renderer::wait_gpu()
     {
         if (!command_queue_ || !fence_ || fence_event_ == nullptr) return;
