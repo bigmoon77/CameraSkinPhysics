@@ -1907,6 +1907,7 @@ namespace csp
         simulation_parameters_.edge_compliance = std::clamp(parameters.edge_compliance, 1.0e-9f, 1.0e-2f);
         simulation_parameters_.area_compliance = std::clamp(parameters.area_compliance, 1.0e-9f, 1.0e-2f);
         simulation_parameters_.bending_compliance = std::clamp(parameters.bending_compliance, 1.0e-9f, 1.0e-2f);
+        simulation_parameters_.shape_matching_strength = std::clamp(parameters.shape_matching_strength, 0.0f, 1.0f);
         simulation_parameters_.max_correction = std::clamp(parameters.max_correction, 0.0001f, 0.05f);
         simulation_parameters_.particle_radius = std::clamp(parameters.particle_radius, 0.001f, 0.05f);
         simulation_parameters_.pushout = std::clamp(parameters.pushout, 0.0f, 0.03f);
