@@ -40,6 +40,7 @@ The collision controls currently affect Camera Surface mode. XPBD retains its ex
 - Tetrahedral topology: 10,144 interior particles, 51,246 tetrahedra and 204,984 particle-element CSR incidence entries per sphere at the default resolution.
 - Tetrahedral XPBD: particle integration, volume and edge constraints, ping-pong multipliers, CSR correction gather and barycentric GPU skinning.
 - Camera-surface XPBD: 100,000 surface particles per sphere, edge-length constraints, ping-pong multipliers, CSR correction gather and direct GPU skinning.
+- Generic surface topology preprocessing: triangle rest-area constraints, shared-edge dihedral rest-angle constraints, boundary/non-manifold/orientation diagnostics and signed rest volume are generated from arbitrary indexed triangle meshes. Edge records are sorted contiguously to avoid per-edge heap allocations at high mesh counts. These new area/bending records are currently preprocessing data; their GPU XPBD solve passes are the next implementation stage.
 - Two 1024 × 1024 opposing-body normal/depth capture targets and the shared camera-space particle contact pass.
 - GPU timestamp queries. CSV files are written separately:
   - `output/benchmark_xpbd.csv`
@@ -51,7 +52,7 @@ The memory columns report the allocated simulation-buffer sizes for the selected
 
 ## Known limitations
 
-- The camera method is currently a surface-edge XPBD model paired with depth/normal contact. It does not have a volume or thickness constraint. Surface triangles can fold or invert under severe deformation; bending/dihedral and area constraints are possible next steps.
+- The camera method currently solves surface-edge XPBD only. Area and dihedral rest constraints are generated and validated on the CPU, but their GPU solve passes are not integrated yet; signed rest volume is currently topology metadata only. Until those passes are added, surface triangles can fold or invert under severe deformation. Closed-volume solving must be gated by the generated manifold/orientation validation; open meshes remain supported for edge/area/bending constraints.
 - The camera contact uses one frontmost depth layer from a single view. It cannot classify deep interior overlap or the far side of the opposing body. The shader limits correction to a narrow contact band to avoid projecting deep particles onto the visible shell. Multi-view capture, depth peeling or thickness reconstruction is required for robust deep overlap.
 - The tetrahedral domain is a regular lattice clipped to the sphere. Its boundary is coarse and a small number of render samples use a nearest-element fallback. Rest offsets preserve the initial rest pose.
 - Render normals are currently radial approximations. Recompute from deformed triangle adjacency for improved lighting.
