@@ -1924,15 +1924,6 @@ namespace csp
                 write_texture_srv(table, 1, capture_normal_[body_index].Get(), DXGI_FORMAT_R16G16B16A16_FLOAT);
                 write_buffer_srv(table, 2, input_particles,
                     collision_constants.particle_count, sizeof(simulation_particle));
-                if (use_camera_surface)
-                {
-                    write_buffer_srv(table, 3, compute_->surface_edge_ranges.Get(),
-                        compute_->vertex_count, sizeof(mesh_uint2));
-                    write_buffer_srv(table, 4, compute_->incident_surface_corrections.Get(),
-                        compute_->edge_count * 2u, sizeof(std::uint32_t));
-                    write_buffer_srv(table, 5, compute_->surface_edges.Get(),
-                        compute_->edge_count, sizeof(surface_edge));
-                }
                 write_buffer_uav(table, 0, output_particles,
                     collision_constants.particle_count, sizeof(simulation_particle));
                 std::uint32_t contact_write_index = 0;
