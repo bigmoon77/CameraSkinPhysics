@@ -108,16 +108,17 @@ namespace csp
             incidence_offset += incidence_counts[vertex_index];
         }
 
-        mesh.incident_edges.resize(incidence_offset);
+        mesh.incident_corrections.resize(incidence_offset);
         std::vector<std::uint32_t> write_offsets(mesh.vertices.size(), 0);
         for (std::uint32_t edge_index = 0; edge_index < mesh.edges.size(); ++edge_index)
         {
             const surface_edge& edge = mesh.edges[edge_index];
-            for (const std::uint32_t vertex_index : edge.indices)
+            for (std::uint32_t endpoint = 0; endpoint < 2; ++endpoint)
             {
+                const std::uint32_t vertex_index = edge.indices[endpoint];
                 const std::uint32_t destination =
                     mesh.edge_incidence_ranges[vertex_index].x + write_offsets[vertex_index]++;
-                mesh.incident_edges[destination] = edge_index;
+                mesh.incident_corrections[destination] = edge_index * 2u + endpoint;
             }
         }
 
