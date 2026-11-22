@@ -4,18 +4,10 @@ struct Particle
     float4 velocity;
 };
 
-struct SurfaceEdge
-{
-    uint2 indices;
-    float rest_length;
-    float compliance;
-};
-
 StructuredBuffer<Particle> g_particles_in : register(t0);
 StructuredBuffer<uint2> g_incidence_ranges : register(t1);
-StructuredBuffer<uint> g_incident_edges : register(t2);
+StructuredBuffer<uint> g_incident_corrections : register(t2);
 StructuredBuffer<float4> g_edge_corrections : register(t3);
-StructuredBuffer<SurfaceEdge> g_edges : register(t4);
 RWStructuredBuffer<Particle> g_particles_out : register(u0);
 
 cbuffer GatherConstants : register(b0)
@@ -38,12 +30,8 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
 
     for (uint offset = 0; offset < range.y; ++offset)
     {
-        const uint edge_index = g_incident_edges[range.x + offset];
-        const SurfaceEdge edge = g_edges[edge_index];
-        if (edge.indices.x == particle_index)
-            correction += g_edge_corrections[edge_index * 2 + 0].xyz;
-        else if (edge.indices.y == particle_index)
-            correction += g_edge_corrections[edge_index * 2 + 1].xyz;
+        const uint correction_index = g_incident_corrections[range.x + offset];
+        correction += g_edge_corrections[correction_index].xyz;
     }
 
     const float correction_length = length(correction);
