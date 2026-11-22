@@ -46,7 +46,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     }
 
     const float constraint = current_length - edge.rest_length;
-    const float alpha = edge.compliance / max(delta_time * delta_time, 1.0e-8f);
+    const float alpha = padding / max(delta_time * delta_time, 1.0e-8f);
     const float delta_lambda = (-constraint - alpha * old_lambda) / max(2.0f + alpha, 1.0e-9f);
     const float scaled_lambda = delta_lambda * relaxation;
     const float3 gradient = delta / current_length;
