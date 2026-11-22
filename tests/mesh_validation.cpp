@@ -94,7 +94,19 @@ int main()
         for (const std::uint32_t index : bend.indices)
             if (index >= surface.vertices.size()) surface_constraints_valid = false;
         if (!finite_value(bend.rest_distance) || !(bend.rest_distance > 0.0f) || !(bend.compliance >= 0.0f)
-            || !finite_value(bend.compliance)) surface_constraints_valid = false;
+            || !finite_value(bend.compliance))
+        {
+            surface_constraints_valid = false;
+            continue;
+        }
+        const csp::vertex& opposite_a = surface.vertices[bend.indices[2]];
+        const csp::vertex& opposite_b = surface.vertices[bend.indices[3]];
+        const float dx = opposite_a.position[0] - opposite_b.position[0];
+        const float dy = opposite_a.position[1] - opposite_b.position[1];
+        const float dz = opposite_a.position[2] - opposite_b.position[2];
+        const float expected_distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (std::abs(bend.rest_distance - expected_distance) > std::max(1.0e-7f, expected_distance * 1.0e-5f))
+            surface_constraints_valid = false;
     }
     check(surface_constraints_valid, "area and bending constraints must contain valid rest data");
 
@@ -180,6 +192,8 @@ int main()
         "two-triangle quad must expose four boundary edges");
     check(open_surface.bending.size() == 1u,
         "two-triangle quad must generate one shared-edge bending constraint");
+    check(std::abs(open_surface.bending[0].rest_distance - std::sqrt(2.0f)) < 1.0e-6f,
+        "quad hinge rest distance must match the opposite-vertex distance");
     check(open_surface.bending_incidence_ranges.size() == 4u
         && open_surface.incident_bending_corners.size() == 4u,
         "open surface must generate complete bending hinge CSR adjacency");
