@@ -291,14 +291,23 @@ bone_indices = {bone.name: index for index, bone in enumerate(bones)}
 
 vertex_weights = []
 vertex_offset = 0
+disabled_armature_modifiers = []
+for obj in mesh_objects:
+    for modifier in obj.modifiers:
+        if modifier.type == "ARMATURE":
+            disabled_armature_modifiers.append((modifier, modifier.show_viewport))
+            modifier.show_viewport = False
+
+depsgraph = bpy.context.evaluated_depsgraph_get()
 with open(obj_path, "w", encoding="utf-8") as obj_file:
     for obj in mesh_objects:
-        mesh = obj.data
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
         mesh.calc_loop_triangles()
-        world = obj.matrix_world
+        world = evaluated.matrix_world
         for vertex in mesh.vertices:
             point = world @ vertex.co
-            obj_file.write("v %.9g %.9g %.9g\n" % (point.x, point.z, -point.y))
+            obj_file.write("v %.9g %.9g %.9g\\n" % (point.x, point.z, -point.y))
             influences = []
             if armature is not None:
                 for group in vertex.groups:
@@ -318,9 +327,13 @@ with open(obj_path, "w", encoding="utf-8") as obj_file:
             vertex_weights.append(influences)
         for triangle in mesh.loop_triangles:
             a, b, c = [vertex_offset + index + 1 for index in triangle.vertices]
-            obj_file.write("f %d %d %d\n" % (a, b, c))
+            obj_file.write("f %d %d %d\\n" % (a, b, c))
         vertex_offset += len(mesh.vertices)
+        evaluated.to_mesh_clear()
 
+for modifier, was_enabled in disabled_armature_modifiers:
+    modifier.show_viewport = was_enabled
+depsgraph = bpy.context.evaluated_depsgraph_get()
 original_frame = scene.frame_current
 fps = scene.render.fps / scene.render.fps_base
 frame_start = scene.frame_start
