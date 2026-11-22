@@ -108,7 +108,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         if (surface_mesh.vertices.size() != 100000 || surface_mesh.indices.size() != 599988
             || surface_mesh.edges.size() != 299994
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
-            || surface_mesh.incident_edges.size() != 599988)
+            || surface_mesh.incident_corrections.size() != 599988)
         {
             MessageBoxW(window, L"Sphere surface topology validation failed.", L"CameraSkinPhysics",
                 MB_ICONERROR | MB_OK);
