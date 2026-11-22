@@ -58,7 +58,7 @@ namespace csp
         std::vector<std::uint8_t> assigned(vertex_count, 0u);
         std::vector<std::vector<std::uint32_t>> core_clusters;
         std::vector<std::uint32_t> queue;
-        queue.reserve(target_core_vertices);
+        queue.reserve(std::min(target_core_vertices, vertex_count));
         for (std::uint32_t seed = 0; seed < vertex_count; ++seed)
         {
             if (assigned[seed] != 0u)
