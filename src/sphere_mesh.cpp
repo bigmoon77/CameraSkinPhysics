@@ -122,19 +122,6 @@ namespace csp
             }
         }
 
-        // Keep vertices with similar incidence counts adjacent in the GPU dispatch.
-        // The overwhelmingly common low-degree vertices are processed together,
-        // while the few high-degree vertices are isolated in the final thread groups.
-        mesh.gather_vertex_indices.resize(mesh.vertices.size());
-        for (std::size_t vertex_index = 0; vertex_index < mesh.gather_vertex_indices.size(); ++vertex_index)
-            mesh.gather_vertex_indices[vertex_index] = static_cast<std::uint32_t>(vertex_index);
-
-        std::stable_sort(mesh.gather_vertex_indices.begin(), mesh.gather_vertex_indices.end(),
-            [&mesh](const std::uint32_t a, const std::uint32_t b)
-            {
-                return mesh.edge_incidence_ranges[a].y < mesh.edge_incidence_ranges[b].y;
-            });
-
         return mesh;
     }
 }
