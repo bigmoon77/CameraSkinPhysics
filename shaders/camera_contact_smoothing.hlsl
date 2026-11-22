@@ -31,9 +31,10 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
     const uint index = dispatch_id.x;
     if (index >= particle_count) return;
     const float4 own = g_corrections_in[index];
+    const float own_length = length(own.xyz);
+    const float3 own_direction = own_length > 1.0e-7f ? own.xyz / own_length : 0.0f;
     float3 sum = own.xyz;
     float weight_sum = 1.0f;
-    float propagated_contact = own.w;
     const uint2 range = g_edge_ranges[index];
     for (uint offset = 0; offset < range.y; ++offset)
     {
@@ -45,12 +46,11 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
             continue;
 
         const float4 neighbor = g_corrections_in[neighbor_index];
-        const float own_length = length(own.xyz);
         const float neighbor_length = length(neighbor.xyz);
         float weight = 1.0f;
         if (own_length > 1.0e-7f && neighbor_length > 1.0e-7f)
         {
-            const float direction_similarity = dot(normalize(own.xyz), normalize(neighbor.xyz));
+            const float direction_similarity = dot(own_direction, neighbor.xyz / neighbor_length);
             if (direction_similarity < 0.25f)
                 continue;
             weight = saturate((direction_similarity - 0.25f) / 0.75f);
@@ -58,12 +58,11 @@ void smooth_corrections(uint3 dispatch_id : SV_DispatchThreadID)
 
         sum += neighbor.xyz * weight;
         weight_sum += weight;
-        propagated_contact = max(propagated_contact, neighbor.w);
     }
 
     const float3 average = sum / weight_sum;
     g_corrections_out[index] = float4(
-        lerp(own.xyz, average, saturate(blend_strength)), propagated_contact);
+        lerp(own.xyz, average, saturate(blend_strength)), own.w);
 }
 
 StructuredBuffer<uint2> g_apply_edge_ranges : register(t1);
@@ -83,7 +82,6 @@ void apply_corrections(uint3 dispatch_id : SV_DispatchThreadID)
     const float own_length = length(own.xyz);
     float3 sum = own.xyz;
     float weight_sum = 1.0f;
-    float propagated_contact = own.w;
     const uint2 range = g_apply_edge_ranges[index];
     for (uint offset = 0; offset < range.y; ++offset)
     {
