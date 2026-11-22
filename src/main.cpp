@@ -399,7 +399,7 @@ scene.frame_set(original_frame)
 
         std::wstring command = L"\"" + std::wstring(blender_path) + L"\" --background \""
             + blend_path.wstring() + L"\" --python \"" + script_path.wstring()
-            + L"\" -- \"" + obj_path.wstring() + L"\" \"" + skin_path.wstring() + L"\"";
+            + L"\" --python-exit-code 1 -- \"" + obj_path.wstring() + L"\" \"" + skin_path.wstring() + L"\"";
         STARTUPINFOW startup{};
         startup.cb = sizeof(startup);
         PROCESS_INFORMATION process{};
