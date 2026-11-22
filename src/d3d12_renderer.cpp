@@ -249,6 +249,7 @@ namespace csp
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> particles;
             Microsoft::WRL::ComPtr<ID3D12Resource> edge_corrections;
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> contact_corrections;
+            std::array<bool, 2> contact_correction_is_srv{};
             std::uint32_t contact_correction_read = 0;
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> edge_lambdas;
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> area_lambdas;
@@ -1939,9 +1940,13 @@ namespace csp
                 {
                     compute_state::camera_gpu_body& body = compute_->camera_bodies[body_index];
                     contact_write_index = 1u - body.contact_correction_read;
-                    transition_resource(body.contact_corrections[contact_write_index].Get(),
-                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    if (body.contact_correction_is_srv[contact_write_index])
+                    {
+                        transition_resource(body.contact_corrections[contact_write_index].Get(),
+                            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                        body.contact_correction_is_srv[contact_write_index] = false;
+                    }
                     write_buffer_uav(table, 1, body.contact_corrections[contact_write_index].Get(),
                         compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
                 }
@@ -1958,6 +1963,7 @@ namespace csp
                     ID3D12Resource* correction_input = body.contact_corrections[contact_write_index].Get();
                     transition_resource(correction_input, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                    body.contact_correction_is_srv[contact_write_index] = true;
 
                     constexpr std::uint32_t contact_smoothing_iterations = 2u;
                     constexpr float contact_smoothing_strength = 0.65f;
@@ -1967,8 +1973,12 @@ namespace csp
                         const std::uint32_t correction_output_index = 1u - contact_write_index;
                         ID3D12Resource* correction_output =
                             body.contact_corrections[correction_output_index].Get();
-                        transition_resource(correction_output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                        if (body.contact_correction_is_srv[correction_output_index])
+                        {
+                            transition_resource(correction_output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                            body.contact_correction_is_srv[correction_output_index] = false;
+                        }
 
                         const std::uint32_t smooth_table = reserve_descriptor_table();
                         clear_descriptor_table(smooth_table);
@@ -1990,8 +2000,10 @@ namespace csp
 
                         transition_resource(correction_output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                        body.contact_correction_is_srv[correction_output_index] = true;
                         transition_resource(correction_input, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                        body.contact_correction_is_srv[contact_write_index] = false;
                         contact_write_index = correction_output_index;
                         correction_input = correction_output;
                     }
