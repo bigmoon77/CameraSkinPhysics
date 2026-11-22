@@ -24,7 +24,7 @@ cbuffer BendingConstants : register(b0)
     uint area_count;
     float delta_time;
     float relaxation;
-    float padding0;
+    float compliance;
     float padding1;
     float padding2;
 };
@@ -55,7 +55,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     }
 
     const float constraint = current_distance - hinge.rest_distance;
-    const float alpha = hinge.compliance / max(delta_time * delta_time, 1.0e-8f);
+    const float alpha = compliance / max(delta_time * delta_time, 1.0e-8f);
     const float delta_lambda = (-constraint - alpha * old_lambda) / max(2.0f + alpha, 1.0e-9f);
     const float scaled_lambda = delta_lambda * relaxation;
     const float3 gradient = delta / current_distance;
