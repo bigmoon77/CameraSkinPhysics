@@ -39,11 +39,13 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
         [unroll]
         for (uint offset = 0; offset < low_degree_limit; ++offset)
         {
-            if (offset >= range.y) break;
-            const uint correction_index = g_incident_corrections[range.x + offset];
-            const uint edge_index = correction_index >> 1u;
-            const float endpoint_sign = (correction_index & 1u) != 0u ? -1.0f : 1.0f;
-            correction += g_edge_corrections[edge_index] * endpoint_sign;
+            if (offset < range.y)
+            {
+                const uint correction_index = g_incident_corrections[range.x + offset];
+                const uint edge_index = correction_index >> 1u;
+                const float endpoint_sign = (correction_index & 1u) != 0u ? -1.0f : 1.0f;
+                correction += g_edge_corrections[edge_index] * endpoint_sign;
+            }
         }
     }
     else
