@@ -1324,7 +1324,7 @@ namespace csp
         std::uint64_t camera_gather_ticks = 0;
         if (mode_index == 1u && !simulation_paused_)
         {
-            for (std::uint32_t dispatch_index = 0; dispatch_index < 8; ++dispatch_index)
+            for (std::uint32_t dispatch_index = 0; dispatch_index < simulation_parameters_.solver_iterations * 2u; ++dispatch_index)
             {
                 const std::uint32_t edge_query = 5u + dispatch_index * 2u;
                 const std::uint32_t gather_query = 21u + dispatch_index * 2u;
