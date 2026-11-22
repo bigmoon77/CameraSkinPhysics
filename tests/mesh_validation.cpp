@@ -45,6 +45,61 @@ int main()
         "surface edge incidence range count must match vertex count");
     check(surface.incident_corrections.size() == surface.edges.size() * 2,
         "each surface edge must have exactly two incidence entries");
+    check(surface.triangle_areas.size() == surface.indices.size() / 3u,
+        "surface area constraints must be generated for every triangle");
+    check(surface.bending.size() == surface.edges.size(),
+        "closed two-manifold sphere must have one bending constraint per edge");
+    check(surface.topology.closed_oriented,
+        "consistently wound closed sphere must be classified as closed and oriented");
+    check(surface.topology.boundary_edge_count == 0u,
+        "closed sphere must not contain boundary edges");
+    check(surface.topology.non_manifold_edge_count == 0u,
+        "closed sphere must not contain non-manifold edges");
+    check(surface.topology.orientation_conflict_count == 0u,
+        "closed sphere winding must be consistent across shared edges");
+    check(surface.topology.signed_rest_volume > 0.0f,
+        "outward sphere winding must produce positive signed volume");
+
+    bool surface_constraints_valid = true;
+    for (const csp::triangle_area_constraint& area : surface.triangle_areas)
+    {
+        if (area.indices[0] >= surface.vertices.size() || area.indices[1] >= surface.vertices.size()
+            || area.indices[2] >= surface.vertices.size() || !(area.rest_area > 0.0f)
+            || !finite_value(area.rest_area) || !(area.compliance >= 0.0f)
+            || !finite_value(area.compliance))
+        {
+            surface_constraints_valid = false;
+            break;
+        }
+    }
+    for (const csp::bending_constraint& bend : surface.bending)
+    {
+        for (const std::uint32_t index : bend.indices)
+            if (index >= surface.vertices.size()) surface_constraints_valid = false;
+        if (!finite_value(bend.rest_angle) || !(bend.compliance >= 0.0f)
+            || !finite_value(bend.compliance)) surface_constraints_valid = false;
+    }
+    check(surface_constraints_valid, "area and bending constraints must contain valid rest data");
+
+    csp::sphere_mesh open_surface{};
+    open_surface.vertices.resize(4);
+    open_surface.vertices[0].position[0] = 0.0f;
+    open_surface.vertices[0].position[1] = 0.0f;
+    open_surface.vertices[1].position[0] = 1.0f;
+    open_surface.vertices[2].position[0] = 1.0f;
+    open_surface.vertices[2].position[1] = 1.0f;
+    open_surface.vertices[3].position[1] = 1.0f;
+    open_surface.indices = {0u, 1u, 2u, 0u, 2u, 3u};
+    csp::build_surface_constraints(open_surface);
+    check(!open_surface.topology.closed_oriented,
+        "open surface must not enable closed-volume constraints");
+    check(open_surface.topology.boundary_edge_count == 4u,
+        "two-triangle quad must expose four boundary edges");
+    check(open_surface.bending.size() == 1u,
+        "two-triangle quad must generate one shared-edge bending constraint");
+    check(open_surface.triangle_areas.size() == 2u,
+        "two-triangle quad must generate two area constraints");
+
 
     bool surface_edges_valid = true;
     for (std::size_t edge_index = 0; edge_index < surface.edges.size(); ++edge_index)
