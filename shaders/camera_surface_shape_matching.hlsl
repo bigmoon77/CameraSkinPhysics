@@ -17,19 +17,19 @@ StructuredBuffer<uint2> g_cluster_vertex_ranges : register(t2);
 StructuredBuffer<uint> g_cluster_vertices : register(t3);
 RWStructuredBuffer<ClusterTransform> g_cluster_transforms : register(u0);
 
-cbuffer BuildConstants : register(b0)
+cbuffer ShapeConstants : register(b0)
 {
-    uint cluster_count;
-    uint padding0;
-    uint padding1;
-    uint padding2;
+    uint element_count;
+    float strength;
+    float max_correction;
+    float delta_time;
 };
 
 [numthreads(64, 1, 1)]
 void build_transforms(uint3 dispatch_id : SV_DispatchThreadID)
 {
     const uint cluster_index = dispatch_id.x;
-    if (cluster_index >= cluster_count) return;
+    if (cluster_index >= element_count) return;
 
     const uint2 range = g_cluster_vertex_ranges[cluster_index];
     if (range.y == 0u) return;
@@ -144,19 +144,12 @@ StructuredBuffer<uint> g_vertex_clusters : register(t5);
 StructuredBuffer<ClusterTransform> g_transforms : register(t6);
 RWStructuredBuffer<Particle> g_particles_out : register(u1);
 
-cbuffer ApplyConstants : register(b0)
-{
-    uint particle_count;
-    float strength;
-    float max_correction;
-    float delta_time;
-};
 
 [numthreads(256, 1, 1)]
 void apply_matching(uint3 dispatch_id : SV_DispatchThreadID)
 {
     const uint vertex_index = dispatch_id.x;
-    if (vertex_index >= particle_count) return;
+    if (vertex_index >= element_count) return;
 
     Particle particle = g_particles[vertex_index];
     const uint2 range = g_vertex_cluster_ranges[vertex_index];
