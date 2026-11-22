@@ -1290,7 +1290,7 @@ namespace csp
             || compute_->mapped_surface_bending == nullptr)
             return;
 
-        compute_->animation_time += std::clamp(delta_time, 0.0f, 0.1f);
+        compute_->animation_time += std::clamp(delta_time, 1.0f / 240.0f, 1.0f / 30.0f);
         sample_skin_matrices(compute_->animation, compute_->animation_time,
             compute_->sampled_skin_matrices);
 
