@@ -31,7 +31,9 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     for (uint offset = 0; offset < range.y; ++offset)
     {
         const uint correction_index = g_incident_corrections[range.x + offset];
-        correction += g_edge_corrections[correction_index];
+        const uint edge_index = correction_index >> 1u;
+        const float sign = (correction_index & 1u) != 0u ? -1.0f : 1.0f;
+        correction += g_edge_corrections[edge_index] * sign;
     }
 
     const float correction_length = length(correction);
