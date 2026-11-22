@@ -143,8 +143,9 @@ namespace csp
             std::uint32_t edge_count;
             float delta_time;
             float relaxation;
+            float compliance;
         };
-        static_assert(sizeof(camera_area_constants) == 16);
+        static_assert(sizeof(camera_area_constants) == 20);
 
         struct camera_gather_constants
         {
@@ -1280,7 +1281,8 @@ namespace csp
                     compute_->edge_count, sizeof(float));
 
                 const tetrahedron_constants edge_constants{
-                    compute_->edge_count, clamped_delta_time, simulation_parameters_.edge_relaxation, 0.0f
+                    compute_->edge_count, clamped_delta_time, simulation_parameters_.edge_relaxation,
+                    simulation_parameters_.edge_compliance
                 };
                 const std::uint32_t edge_query = 5u + camera_dispatch_index * 2u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, edge_query);
@@ -1302,10 +1304,11 @@ namespace csp
                     compute_->triangle_count, sizeof(float));
                 const camera_area_constants area_constants{
                     compute_->triangle_count, compute_->edge_count,
-                    clamped_delta_time, simulation_parameters_.edge_relaxation
+                    clamped_delta_time, simulation_parameters_.edge_relaxation,
+                    simulation_parameters_.area_compliance
                 };
                 dispatch_compute(compute_->camera_surface_area_pipeline.Get(), area_table,
-                    &area_constants, 4, triangle_groups);
+                    &area_constants, 5, triangle_groups);
 
                 std::uint32_t bending_lambda_write = bending_lambda_read;
                 if (compute_->bending_count > 0)
@@ -1326,7 +1329,8 @@ namespace csp
                         compute_->bending_count, sizeof(float));
                     const camera_bending_constants bending_constants{
                         compute_->bending_count, compute_->edge_count, compute_->triangle_count,
-                        clamped_delta_time, simulation_parameters_.edge_relaxation, {0.0f, 0.0f, 0.0f}
+                        clamped_delta_time, simulation_parameters_.edge_relaxation,
+                        simulation_parameters_.bending_compliance, {0.0f, 0.0f}
                     };
                     dispatch_compute(compute_->camera_surface_bending_pipeline.Get(), bending_table,
                         &bending_constants, 8, bending_groups);
@@ -1782,6 +1786,9 @@ namespace csp
     {
         simulation_parameters_.solver_iterations = std::clamp(parameters.solver_iterations, 1u, max_solver_iterations);
         simulation_parameters_.edge_relaxation = std::clamp(parameters.edge_relaxation, 0.0f, 1.5f);
+        simulation_parameters_.edge_compliance = std::clamp(parameters.edge_compliance, 1.0e-9f, 1.0e-2f);
+        simulation_parameters_.area_compliance = std::clamp(parameters.area_compliance, 1.0e-9f, 1.0e-2f);
+        simulation_parameters_.bending_compliance = std::clamp(parameters.bending_compliance, 1.0e-9f, 1.0e-2f);
         simulation_parameters_.max_correction = std::clamp(parameters.max_correction, 0.0001f, 0.05f);
         simulation_parameters_.particle_radius = std::clamp(parameters.particle_radius, 0.001f, 0.05f);
         simulation_parameters_.pushout = std::clamp(parameters.pushout, 0.0f, 0.03f);
