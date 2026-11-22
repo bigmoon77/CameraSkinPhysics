@@ -309,6 +309,8 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_bending;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_bending_ranges;
         Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_bending;
+        Microsoft::WRL::ComPtr<ID3D12Resource> surface_gather_ranges;
+        Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_gather;
         std::array<gpu_body, 2> bodies;
         std::array<camera_gpu_body, 2> camera_bodies;
         Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature;
@@ -820,6 +822,42 @@ namespace csp
         compute_->surface_bending_ranges = upload_vector(surface_mesh.bending_incidence_ranges);
         compute_->incident_surface_bending = upload_vector(incident_bending_upload);
 
+        std::vector<mesh_uint2> gather_ranges(surface_mesh.vertices.size());
+        std::vector<std::uint32_t> gather_incidents;
+        gather_incidents.reserve(surface_mesh.incident_corrections.size()
+            + surface_mesh.incident_triangle_corners.size()
+            + surface_mesh.incident_bending_corners.size());
+        for (std::uint32_t vertex_index = 0; vertex_index < surface_mesh.vertices.size(); ++vertex_index)
+        {
+            const std::uint32_t begin = static_cast<std::uint32_t>(gather_incidents.size());
+            const mesh_uint2 edge_range = surface_mesh.edge_incidence_ranges[vertex_index];
+            for (std::uint32_t i = 0; i < edge_range.y; ++i)
+            {
+                const std::uint32_t encoded = surface_mesh.incident_corrections[edge_range.x + i];
+                gather_incidents.push_back((encoded >> 1u) | ((encoded & 1u) != 0u ? 0x80000000u : 0u));
+            }
+            const mesh_uint2 triangle_range = surface_mesh.triangle_incidence_ranges[vertex_index];
+            for (std::uint32_t i = 0; i < triangle_range.y; ++i)
+            {
+                gather_incidents.push_back(compute_->edge_count
+                    + surface_mesh.incident_triangle_corners[triangle_range.x + i]);
+            }
+            const mesh_uint2 bending_range = surface_mesh.bending_incidence_ranges[vertex_index];
+            for (std::uint32_t i = 0; i < bending_range.y; ++i)
+            {
+                const std::uint32_t encoded = surface_mesh.incident_bending_corners[bending_range.x + i];
+                const std::uint32_t hinge_index = encoded >> 2u;
+                const std::uint32_t corner_index = encoded & 3u;
+                gather_incidents.push_back(compute_->edge_count
+                    + compute_->triangle_count * 3u + hinge_index * 4u + corner_index);
+            }
+            gather_ranges[vertex_index] = {begin,
+                static_cast<std::uint32_t>(gather_incidents.size()) - begin};
+        }
+        if (gather_incidents.empty()) gather_incidents.push_back(0u);
+        compute_->surface_gather_ranges = upload_vector(gather_ranges);
+        compute_->incident_surface_gather = upload_vector(gather_incidents);
+
         if (!compute_->inverse_masses || !compute_->rest_positions || !compute_->tetrahedra
             || !compute_->incidence_ranges || !compute_->incident_tetrahedra
             || !compute_->tetrahedron_indices || !compute_->surface_mappings
@@ -828,7 +866,8 @@ namespace csp
             || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections
             || !compute_->surface_triangle_areas || !compute_->surface_triangle_ranges
             || !compute_->incident_surface_triangles || !compute_->surface_bending
-            || !compute_->surface_bending_ranges || !compute_->incident_surface_bending)
+            || !compute_->surface_bending_ranges || !compute_->incident_surface_bending
+            || !compute_->surface_gather_ranges || !compute_->incident_surface_gather)
             return false;
 
         const D3D12_RANGE no_read_range{0, 0};
@@ -1564,21 +1603,16 @@ namespace csp
                 clear_descriptor_table(gather_table);
                 write_buffer_srv(gather_table, 0, body.particles[body.particle_read].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
-                write_buffer_srv(gather_table, 1, compute_->surface_edge_ranges.Get(),
+                write_buffer_srv(gather_table, 1, compute_->surface_gather_ranges.Get(),
                     compute_->vertex_count, sizeof(mesh_uint2));
-                write_buffer_srv(gather_table, 2, compute_->incident_surface_corrections.Get(),
-                    compute_->edge_count * 2u, sizeof(std::uint32_t));
+                write_buffer_srv(gather_table, 2, compute_->incident_surface_gather.Get(),
+                    static_cast<std::uint32_t>(std::max<std::size_t>(1u,
+                        surface_mesh.incident_corrections.size()
+                        + surface_mesh.incident_triangle_corners.size()
+                        + surface_mesh.incident_bending_corners.size())), sizeof(std::uint32_t));
                 write_buffer_srv(gather_table, 3, body.edge_corrections.Get(),
                     compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 4u,
                     sizeof(DirectX::XMFLOAT3));
-                write_buffer_srv(gather_table, 4, compute_->surface_triangle_ranges.Get(),
-                    compute_->vertex_count, sizeof(mesh_uint2));
-                write_buffer_srv(gather_table, 5, compute_->incident_surface_triangles.Get(),
-                    compute_->triangle_count * 3u, sizeof(std::uint32_t));
-                write_buffer_srv(gather_table, 6, compute_->surface_bending_ranges.Get(),
-                    compute_->vertex_count, sizeof(mesh_uint2));
-                write_buffer_srv(gather_table, 7, compute_->incident_surface_bending.Get(),
-                    std::max(1u, compute_->bending_count * 4u), sizeof(std::uint32_t));
                 write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
 
