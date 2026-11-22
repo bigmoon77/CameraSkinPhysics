@@ -349,9 +349,9 @@ normalized_vertices = [
 ]
 with open(obj_path, "w", encoding="utf-8") as obj_file:
     for point in normalized_vertices:
-        obj_file.write("v %.9g %.9g %.9g\\n" % point)
+        obj_file.write("v %.9g %.9g %.9g\n" % point)
     for face in exported_faces:
-        obj_file.write("f %d %d %d\\n" % (face[0] + 1, face[1] + 1, face[2] + 1))
+        obj_file.write("f %d %d %d\n" % (face[0] + 1, face[1] + 1, face[2] + 1))
 for modifier, was_enabled in disabled_armature_modifiers:
     modifier.show_viewport = was_enabled
 depsgraph = bpy.context.evaluated_depsgraph_get()
