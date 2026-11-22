@@ -375,10 +375,10 @@ namespace csp
             || !create_compute_resources(surface_mesh, volume_mesh)) return false;
 
         D3D12_QUERY_HEAP_DESC query_description{};
-        query_description.Count = 37;
+        query_description.Count = 5u + max_solver_iterations * 8u;
         query_description.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
         if (FAILED(device_->CreateQueryHeap(&query_description, IID_PPV_ARGS(&timestamp_query_heap_)))) return false;
-        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * 37,
+        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * (5u + max_solver_iterations * 8u),
             D3D12_HEAP_TYPE_READBACK, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
         if (!timestamp_readback_) return false;
         if (FAILED(command_queue_->GetTimestampFrequency(&timestamp_frequency_))) timestamp_frequency_ = 0;
@@ -1510,7 +1510,7 @@ namespace csp
             solver_mode_ == solver_mode::camera_surface ? 1u : 0u;
         if (!compute_->logs[mode_index]) return;
 
-        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * 37};
+        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * (5u + max_solver_iterations * 8u)};
         std::uint64_t* timestamps = nullptr;
         if (FAILED(timestamp_readback_->Map(0, &read_range, reinterpret_cast<void**>(&timestamps)))) return;
 
@@ -1525,7 +1525,7 @@ namespace csp
             for (std::uint32_t dispatch_index = 0; dispatch_index < simulation_parameters_.solver_iterations * 2u; ++dispatch_index)
             {
                 const std::uint32_t edge_query = 5u + dispatch_index * 2u;
-                const std::uint32_t gather_query = 21u + dispatch_index * 2u;
+                const std::uint32_t gather_query = 5u + max_solver_iterations * 4u + dispatch_index * 2u;
                 camera_edge_ticks += timestamps[edge_query + 1u] - timestamps[edge_query];
                 camera_gather_ticks += timestamps[gather_query + 1u] - timestamps[gather_query];
             }
@@ -1741,7 +1741,7 @@ namespace csp
 
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 4);
         command_list_->ResolveQueryData(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
-            0, 37, timestamp_readback_.Get(), 0);
+            0, 5u + max_solver_iterations * 8u, timestamp_readback_.Get(), 0);
 
         back_buffer_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         back_buffer_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -1780,7 +1780,7 @@ namespace csp
 
     void d3d12_renderer::set_simulation_parameters(const simulation_parameters& parameters)
     {
-        simulation_parameters_.solver_iterations = std::clamp(parameters.solver_iterations, 1u, 4u);
+        simulation_parameters_.solver_iterations = std::clamp(parameters.solver_iterations, 1u, max_solver_iterations);
         simulation_parameters_.edge_relaxation = std::clamp(parameters.edge_relaxation, 0.0f, 1.5f);
         simulation_parameters_.max_correction = std::clamp(parameters.max_correction, 0.0001f, 0.05f);
         simulation_parameters_.particle_radius = std::clamp(parameters.particle_radius, 0.001f, 0.05f);
