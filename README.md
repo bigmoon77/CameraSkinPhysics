@@ -20,15 +20,15 @@ Each mode owns independent particle state. Switching to a mode for the first tim
 
 ## Live parameter controls
 
-The application opens a separate **Live Parameters** window. Use **F3** to show or hide it. Trackbars apply changes immediately to subsequent GPU dispatches. The panel also provides **Pause simulation / Resume simulation** and **Reset parameters** controls. While paused, the last deformed pose remains visible and the GPU simulation, contact and skinning dispatches are skipped.
+アプリケーション起動時に「パラメータ」ウィンドウが開きます。**F3** で表示・非表示を切り替えられます。スライダーの変更は次のGPU処理から即時反映されます。「シミュレーションを一時停止／再開」と「パラメータを初期化」も利用できます。 While paused, the last deformed pose remains visible and the GPU simulation, contact and skinning dispatches are skipped.
 
-- Solver iterations: 1–4. The upper bound currently matches the timestamp-query layout.
-- Edge relaxation: 0.0–1.5.
-- Gather max correction: 0.0001–0.05.
-- Camera-surface particle radius: 0.001–0.05.
-- Camera-surface pushout: 0.0–0.03.
-- Camera-surface velocity friction and restitution: 0.0–1.0.
-- Camera-surface contact band: 0.005–0.5.
+- 反復回数: 1–16。GPUタイムスタンプ領域も最大回数に合わせて確保します。
+- エッジ制約の緩和率: 0.0–1.5。
+- 補正量の上限: 0.0001–0.05。
+- 粒子の半径: 0.001–0.05。
+- 接触時の押し出し量: 0.0–0.03。
+- 接触時の摩擦と反発係数: 0.0–1.0。
+- 接触判定の幅: 0.005–0.5。
 
 The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, combined surface-constraint-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
 
