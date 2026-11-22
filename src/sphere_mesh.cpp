@@ -103,6 +103,8 @@ namespace csp
         mesh.triangle_incidence_ranges.clear();
         mesh.incident_triangle_corners.clear();
         mesh.bending.clear();
+        mesh.bending_incidence_ranges.clear();
+        mesh.incident_bending_corners.clear();
         mesh.topology = {};
 
         mesh.triangle_areas.reserve(mesh.indices.size() / 3u);
@@ -170,6 +172,7 @@ namespace csp
         std::vector<std::uint32_t> incidence_counts(mesh.vertices.size(), 0u);
         mesh.edges.reserve(edge_records.size() / 2u + 1u);
         mesh.bending.reserve(edge_records.size() / 2u + 1u);
+        std::vector<std::uint32_t> bending_incidence_counts(mesh.vertices.size(), 0u);
         for (std::size_t record_begin = 0; record_begin < edge_records.size();)
         {
             std::size_t record_end = record_begin + 1u;
@@ -230,9 +233,17 @@ namespace csp
             bend.indices[1] = key[1];
             bend.indices[2] = face0.opposite;
             bend.indices[3] = face1.opposite;
-            bend.rest_angle = std::atan2(sine, cosine);
+            const vertex& opposite_a = mesh.vertices[face0.opposite];
+            const vertex& opposite_b = mesh.vertices[face1.opposite];
+            const float opposite_dx = opposite_a.position[0] - opposite_b.position[0];
+            const float opposite_dy = opposite_a.position[1] - opposite_b.position[1];
+            const float opposite_dz = opposite_a.position[2] - opposite_b.position[2];
+            bend.rest_distance = std::sqrt(opposite_dx * opposite_dx
+                + opposite_dy * opposite_dy + opposite_dz * opposite_dz);
             bend.compliance = bending_compliance;
             mesh.bending.push_back(bend);
+            for (const std::uint32_t vertex_index : bend.indices)
+                ++bending_incidence_counts[vertex_index];
             record_begin = record_end;
         }
 
@@ -279,6 +290,30 @@ namespace csp
                 const std::uint32_t destination =
                     mesh.triangle_incidence_ranges[vertex_index].x + triangle_write_offsets[vertex_index]++;
                 mesh.incident_triangle_corners[destination] = triangle_index * 3u + corner;
+            }
+        }
+
+        mesh.bending_incidence_ranges.resize(mesh.vertices.size());
+        std::uint32_t bending_incidence_offset = 0u;
+        for (std::size_t vertex_index = 0; vertex_index < mesh.vertices.size(); ++vertex_index)
+        {
+            mesh.bending_incidence_ranges[vertex_index] = {
+                bending_incidence_offset, bending_incidence_counts[vertex_index]};
+            bending_incidence_offset += bending_incidence_counts[vertex_index];
+        }
+
+        mesh.incident_bending_corners.resize(bending_incidence_offset);
+        std::vector<std::uint32_t> bending_write_offsets(mesh.vertices.size(), 0u);
+        for (std::uint32_t bending_index = 0;
+            bending_index < static_cast<std::uint32_t>(mesh.bending.size()); ++bending_index)
+        {
+            const bending_constraint& bend = mesh.bending[bending_index];
+            for (std::uint32_t corner = 0; corner < 4u; ++corner)
+            {
+                const std::uint32_t vertex_index = bend.indices[corner];
+                const std::uint32_t destination =
+                    mesh.bending_incidence_ranges[vertex_index].x + bending_write_offsets[vertex_index]++;
+                mesh.incident_bending_corners[destination] = bending_index * 4u + corner;
             }
         }
 
