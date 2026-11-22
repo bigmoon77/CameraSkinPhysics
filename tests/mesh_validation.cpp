@@ -81,6 +81,39 @@ int main()
     }
     check(surface_constraints_valid, "area and bending constraints must contain valid rest data");
 
+    check(surface.triangle_incidence_ranges.size() == surface.vertices.size(),
+        "triangle area CSR range count must match vertex count");
+    check(surface.incident_triangle_corners.size() == surface.triangle_areas.size() * 3u,
+        "triangle area CSR must contain three incidence entries per triangle");
+    bool area_csr_valid = true;
+    std::uint64_t area_incidence_total = 0;
+    for (std::size_t vertex_index = 0; vertex_index < surface.triangle_incidence_ranges.size(); ++vertex_index)
+    {
+        const csp::mesh_uint2 range = surface.triangle_incidence_ranges[vertex_index];
+        if (static_cast<std::size_t>(range.x) + range.y > surface.incident_triangle_corners.size())
+        {
+            area_csr_valid = false;
+            break;
+        }
+        area_incidence_total += range.y;
+        for (std::uint32_t offset = 0; offset < range.y; ++offset)
+        {
+            const std::uint32_t encoded = surface.incident_triangle_corners[range.x + offset];
+            const std::uint32_t triangle_index = encoded / 3u;
+            const std::uint32_t corner = encoded % 3u;
+            if (triangle_index >= surface.triangle_areas.size()
+                || surface.triangle_areas[triangle_index].indices[corner] != vertex_index)
+            {
+                area_csr_valid = false;
+                break;
+            }
+        }
+        if (!area_csr_valid) break;
+    }
+    check(area_csr_valid, "triangle area CSR entries must reference incident triangles");
+    check(area_incidence_total == surface.triangle_areas.size() * 3ull,
+        "triangle area CSR must contain exactly three entries per triangle");
+
     csp::sphere_mesh open_surface{};
     open_surface.vertices.resize(4);
     open_surface.vertices[0].position[0] = 0.0f;
@@ -99,6 +132,9 @@ int main()
         "two-triangle quad must generate one shared-edge bending constraint");
     check(open_surface.triangle_areas.size() == 2u,
         "two-triangle quad must generate two area constraints");
+    check(open_surface.triangle_incidence_ranges.size() == 4u
+        && open_surface.incident_triangle_corners.size() == 6u,
+        "open surface must also generate complete triangle area CSR adjacency");
 
 
     bool surface_edges_valid = true;
