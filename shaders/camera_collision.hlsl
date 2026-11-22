@@ -132,6 +132,30 @@ float3 evaluate_contact_correction(Particle particle, bool filter_samples,
     return normal * min(penetration, effective_contact_band);
 }
 
+void accumulate_neighbor_correction(uint neighbor_index, float3 reference_normal,
+    float neighbor_weight, inout float3 correction_sum, inout float correction_weight_sum)
+{
+    if (neighbor_index >= particle_count)
+        return;
+
+    const Particle neighbor = g_particles_in[neighbor_index];
+    float3 neighbor_normal;
+    bool neighbor_has_contact;
+    const float3 neighbor_correction = evaluate_contact_correction(
+        neighbor, false, neighbor_normal, neighbor_has_contact);
+    if (!neighbor_has_contact || length(neighbor_correction) <= 1.0e-7f)
+        return;
+
+    const float normal_similarity = dot(reference_normal, neighbor_normal);
+    if (normal_similarity < 0.75f)
+        return;
+
+    const float alignment_weight = saturate((normal_similarity - 0.75f) / 0.25f);
+    const float weight = neighbor_weight * alignment_weight;
+    correction_sum += neighbor_correction * weight;
+    correction_weight_sum += weight;
+}
+
 [numthreads(256, 1, 1)]
 void main(uint3 dispatch_id : SV_DispatchThreadID)
 {
@@ -161,26 +185,27 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
             if (neighbor_index >= particle_count || neighbor_index == index)
                 continue;
 
-            const Particle neighbor = g_particles_in[neighbor_index];
-            float3 neighbor_normal;
-            bool neighbor_has_contact;
-            const float3 neighbor_correction = evaluate_contact_correction(
-                neighbor, false, neighbor_normal, neighbor_has_contact);
-            if (!neighbor_has_contact || length(neighbor_correction) <= 1.0e-7f)
-                continue;
+            accumulate_neighbor_correction(neighbor_index, contact_normal, 0.35f,
+                correction_sum, correction_weight_sum);
 
-            const float normal_similarity = dot(contact_normal, neighbor_normal);
-            if (normal_similarity < 0.75f)
-                continue;
+            const uint2 second_ring = g_edge_ranges[neighbor_index];
+            for (uint second_offset = 0; second_offset < second_ring.y; ++second_offset)
+            {
+                const uint second_encoded = g_incident_edge_corrections[
+                    second_ring.x + second_offset];
+                const SurfaceEdge second_edge = g_surface_edges[second_encoded >> 1u];
+                const uint second_index = (second_encoded & 1u) != 0u
+                    ? second_edge.indices.x : second_edge.indices.y;
+                if (second_index == index || second_index == neighbor_index)
+                    continue;
 
-            const float alignment_weight = saturate((normal_similarity - 0.75f) / 0.25f);
-            const float neighbor_weight = 0.35f * alignment_weight;
-            correction_sum += neighbor_correction * neighbor_weight;
-            correction_weight_sum += neighbor_weight;
+                accumulate_neighbor_correction(second_index, contact_normal, 0.10f,
+                    correction_sum, correction_weight_sum);
+            }
         }
 
         const float3 neighborhood_average = correction_sum / correction_weight_sum;
-        final_correction = lerp(own_correction, neighborhood_average, 0.55f);
+        final_correction = lerp(own_correction, neighborhood_average, 0.70f);
     }
 
     particle.position.xyz += final_correction;
