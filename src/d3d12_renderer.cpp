@@ -1380,6 +1380,8 @@ namespace csp
             throw std::runtime_error("Command list reset failed.");
 
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 0);
+        if (!simulation_paused_)
+        {
         if (use_camera_surface)
         {
             simulate_camera_surface(delta_time);
@@ -1479,6 +1481,13 @@ namespace csp
             skin_body(1);
         }
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 3);
+        }
+        else
+        {
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 2);
+            command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 3);
+        }
 
         D3D12_RESOURCE_BARRIER back_buffer_barrier{};
         back_buffer_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -1590,6 +1599,16 @@ namespace csp
     performance_metrics d3d12_renderer::get_performance_metrics() const
     {
         return performance_metrics_;
+    }
+
+    void d3d12_renderer::set_simulation_paused(bool paused)
+    {
+        simulation_paused_ = paused;
+    }
+
+    bool d3d12_renderer::is_simulation_paused() const
+    {
+        return simulation_paused_;
     }
 
     void d3d12_renderer::wait_gpu()
