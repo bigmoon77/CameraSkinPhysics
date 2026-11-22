@@ -111,5 +111,4 @@ Add Blender's executable directory to `PATH` so `blender.exe` can be found.
 
 Imported OBJ geometry is centered and uniformly scaled so its largest bounding-box extent is 2 units.
 The imported model runs with the camera-surface XPBD solver (F2); the tetrahedral solver (F1)
-remains available for the built-in sphere only. The restart control relaunches the application
-with the currently imported mesh, restoring its initial particle positions and velocities.
+remains available for the built-in sphere only. The restart control relaunches the application with the currently imported mesh, restoring its initial particle positions and velocities. It also restores simulation parameters to their defaults.
