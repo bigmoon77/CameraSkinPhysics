@@ -1188,7 +1188,7 @@ namespace csp
                 body.area_lambda_zero_is_srv = false;
             }
 
-            if (body.bending_lambda_zero_is_srv)
+            if (compute_->bending_count > 0 && body.bending_lambda_zero_is_srv)
             {
                 transition_resource(body.bending_lambdas[0].Get(),
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -1215,15 +1215,18 @@ namespace csp
             transition_resource(body.area_lambdas[0].Get(),
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-            const std::uint32_t bending_clear_table = reserve_descriptor_table();
-            clear_descriptor_table(bending_clear_table);
-            write_buffer_uav(bending_clear_table, 0, body.bending_lambdas[0].Get(),
-                compute_->bending_count, sizeof(float));
-            const clear_constants bending_clear_values{compute_->bending_count, {0.0f, 0.0f, 0.0f}};
-            dispatch_compute(compute_->clear_pipeline.Get(), bending_clear_table, &bending_clear_values, 4,
-                bending_groups);
-            transition_resource(body.bending_lambdas[0].Get(),
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            if (compute_->bending_count > 0)
+            {
+                const std::uint32_t bending_clear_table = reserve_descriptor_table();
+                clear_descriptor_table(bending_clear_table);
+                write_buffer_uav(bending_clear_table, 0, body.bending_lambdas[0].Get(),
+                    compute_->bending_count, sizeof(float));
+                const clear_constants bending_clear_values{compute_->bending_count, {0.0f, 0.0f, 0.0f}};
+                dispatch_compute(compute_->clear_pipeline.Get(), bending_clear_table, &bending_clear_values, 4,
+                    bending_groups);
+                transition_resource(body.bending_lambdas[0].Get(),
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            }
 
             const std::uint32_t integration_output = 1u - body.particle_read;
             transition_resource(body.particles[integration_output].Get(),
@@ -1299,26 +1302,31 @@ namespace csp
                 dispatch_compute(compute_->camera_surface_area_pipeline.Get(), area_table,
                     &area_constants, 4, triangle_groups);
 
-                const std::uint32_t bending_lambda_write = 1u - bending_lambda_read;
-                const std::uint32_t bending_table = reserve_descriptor_table();
-                clear_descriptor_table(bending_table);
-                write_buffer_srv(bending_table, 0, body.particles[body.particle_read].Get(),
-                    compute_->vertex_count, sizeof(simulation_particle));
-                write_buffer_srv(bending_table, 1, compute_->surface_bending.Get(),
-                    compute_->bending_count, sizeof(bending_constraint));
-                write_buffer_srv(bending_table, 2, body.bending_lambdas[bending_lambda_read].Get(),
-                    compute_->bending_count, sizeof(float));
-                write_buffer_uav(bending_table, 0, body.edge_corrections.Get(),
-                    compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 4u,
-                    sizeof(DirectX::XMFLOAT3));
-                write_buffer_uav(bending_table, 1, body.bending_lambdas[bending_lambda_write].Get(),
-                    compute_->bending_count, sizeof(float));
-                const camera_bending_constants bending_constants{
-                    compute_->bending_count, compute_->edge_count, compute_->triangle_count,
-                    clamped_delta_time, simulation_parameters_.edge_relaxation, {0.0f, 0.0f, 0.0f}
-                };
-                dispatch_compute(compute_->camera_surface_bending_pipeline.Get(), bending_table,
-                    &bending_constants, 8, bending_groups);
+                std::uint32_t bending_lambda_write = bending_lambda_read;
+                if (compute_->bending_count > 0)
+                {
+                    const std::uint32_t bending_lambda_write = 1u - bending_lambda_read;
+                    const std::uint32_t bending_table = reserve_descriptor_table();
+                    clear_descriptor_table(bending_table);
+                    write_buffer_srv(bending_table, 0, body.particles[body.particle_read].Get(),
+                        compute_->vertex_count, sizeof(simulation_particle));
+                    write_buffer_srv(bending_table, 1, compute_->surface_bending.Get(),
+                        compute_->bending_count, sizeof(bending_constraint));
+                    write_buffer_srv(bending_table, 2, body.bending_lambdas[bending_lambda_read].Get(),
+                        compute_->bending_count, sizeof(float));
+                    write_buffer_uav(bending_table, 0, body.edge_corrections.Get(),
+                        compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 4u,
+                        sizeof(DirectX::XMFLOAT3));
+                    write_buffer_uav(bending_table, 1, body.bending_lambdas[bending_lambda_write].Get(),
+                        compute_->bending_count, sizeof(float));
+                    const camera_bending_constants bending_constants{
+                        compute_->bending_count, compute_->edge_count, compute_->triangle_count,
+                        clamped_delta_time, simulation_parameters_.edge_relaxation, {0.0f, 0.0f, 0.0f}
+                    };
+                    dispatch_compute(compute_->camera_surface_bending_pipeline.Get(), bending_table,
+                        &bending_constants, 8, bending_groups);
+    
+                }
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, edge_query + 1u);
 
                 transition_resource(body.edge_corrections.Get(),
@@ -1332,10 +1340,13 @@ namespace csp
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                 transition_resource(body.area_lambdas[area_lambda_read].Get(),
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                transition_resource(body.bending_lambdas[bending_lambda_write].Get(),
-                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-                transition_resource(body.bending_lambdas[bending_lambda_read].Get(),
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                if (compute_->bending_count > 0)
+                {
+                    transition_resource(body.bending_lambdas[bending_lambda_write].Get(),
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                    transition_resource(body.bending_lambdas[bending_lambda_read].Get(),
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                }
 
                 const std::uint32_t particle_output = 1u - body.particle_read;
                 transition_resource(body.particles[particle_output].Get(),
@@ -1358,7 +1369,7 @@ namespace csp
                 write_buffer_srv(gather_table, 6, compute_->surface_bending_ranges.Get(),
                     compute_->vertex_count, sizeof(mesh_uint2));
                 write_buffer_srv(gather_table, 7, compute_->incident_surface_bending.Get(),
-                    compute_->bending_count * 4u, sizeof(std::uint32_t));
+                    std::max(1u, compute_->bending_count * 4u), sizeof(std::uint32_t));
                 write_buffer_uav(gather_table, 0, body.particles[particle_output].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
 
@@ -1377,11 +1388,11 @@ namespace csp
                 body.particle_read = particle_output;
                 edge_lambda_read = edge_lambda_write;
                 area_lambda_read = area_lambda_write;
-                bending_lambda_read = bending_lambda_write;
+                if (compute_->bending_count > 0) bending_lambda_read = bending_lambda_write;
             }
             body.lambda_zero_is_srv = edge_lambda_read == 0;
             body.area_lambda_zero_is_srv = area_lambda_read == 0;
-            body.bending_lambda_zero_is_srv = bending_lambda_read == 0;
+            body.bending_lambda_zero_is_srv = compute_->bending_count > 0 && bending_lambda_read == 0;
         }
     }
 
