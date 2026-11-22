@@ -290,6 +290,8 @@ if len(bones) > 512:
 bone_indices = {bone.name: index for index, bone in enumerate(bones)}
 
 vertex_weights = []
+exported_vertices = []
+exported_faces = []
 vertex_offset = 0
 disabled_armature_modifiers = []
 for obj in mesh_objects:
@@ -299,38 +301,54 @@ for obj in mesh_objects:
             modifier.show_viewport = False
 
 depsgraph = bpy.context.evaluated_depsgraph_get()
-with open(obj_path, "w", encoding="utf-8") as obj_file:
-    for obj in mesh_objects:
-        evaluated = obj.evaluated_get(depsgraph)
-        mesh = evaluated.to_mesh()
-        mesh.calc_loop_triangles()
-        world = evaluated.matrix_world
-        for vertex in mesh.vertices:
-            point = world @ vertex.co
-            obj_file.write("v %.9g %.9g %.9g\\n" % (point.x, point.z, -point.y))
+for obj in mesh_objects:
+    evaluated = obj.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    mesh.calc_loop_triangles()
+    world = evaluated.matrix_world
+    for vertex in mesh.vertices:
+        point = world @ vertex.co
+        exported_vertices.append((point.x, point.z, -point.y))
+        influences = []
+        if armature is not None:
+            for group in vertex.groups:
+                group_name = obj.vertex_groups[group.group].name
+                bone_index = bone_indices.get(group_name)
+                if bone_index is not None and group.weight > 0.0:
+                    influences.append((bone_index, group.weight))
+        influences.sort(key=lambda item: item[1], reverse=True)
+        influences = influences[:4]
+        total = sum(weight for _, weight in influences)
+        if total > 1.0e-8:
+            influences = [(index, weight / total) for index, weight in influences]
+        else:
             influences = []
-            if armature is not None:
-                for group in vertex.groups:
-                    group_name = obj.vertex_groups[group.group].name
-                    bone_index = bone_indices.get(group_name)
-                    if bone_index is not None and group.weight > 0.0:
-                        influences.append((bone_index, group.weight))
-            influences.sort(key=lambda item: item[1], reverse=True)
-            influences = influences[:4]
-            total = sum(weight for _, weight in influences)
-            if total > 1.0e-8:
-                influences = [(index, weight / total) for index, weight in influences]
-            else:
-                influences = []
-            while len(influences) < 4:
-                influences.append((0, 0.0))
-            vertex_weights.append(influences)
-        for triangle in mesh.loop_triangles:
-            a, b, c = [vertex_offset + index + 1 for index in triangle.vertices]
-            obj_file.write("f %d %d %d\\n" % (a, b, c))
-        vertex_offset += len(mesh.vertices)
-        evaluated.to_mesh_clear()
+        while len(influences) < 4:
+            influences.append((0, 0.0))
+        vertex_weights.append(influences)
+    for triangle in mesh.loop_triangles:
+        exported_faces.append(tuple(vertex_offset + index for index in triangle.vertices))
+    vertex_offset += len(mesh.vertices)
+    evaluated.to_mesh_clear()
 
+if not exported_vertices:
+    raise RuntimeError("The Blender scene contains no mesh vertices.")
+minimum = [min(point[axis] for point in exported_vertices) for axis in range(3)]
+maximum = [max(point[axis] for point in exported_vertices) for axis in range(3)]
+center = [(minimum[axis] + maximum[axis]) * 0.5 for axis in range(3)]
+extent = max(maximum[axis] - minimum[axis] for axis in range(3))
+if extent <= 1.0e-8:
+    raise RuntimeError("The Blender mesh has invalid bounds.")
+normalization_scale = 2.0 / extent
+normalized_vertices = [
+    tuple((point[axis] - center[axis]) * normalization_scale for axis in range(3))
+    for point in exported_vertices
+]
+with open(obj_path, "w", encoding="utf-8") as obj_file:
+    for point in normalized_vertices:
+        obj_file.write("v %.9g %.9g %.9g\\n" % point)
+    for face in exported_faces:
+        obj_file.write("f %d %d %d\\n" % (face[0] + 1, face[1] + 1, face[2] + 1))
 for modifier, was_enabled in disabled_armature_modifiers:
     modifier.show_viewport = was_enabled
 depsgraph = bpy.context.evaluated_depsgraph_get()
@@ -343,6 +361,11 @@ if frame_count > 6000:
     raise RuntimeError("The animation range exceeds 6000 sampled frames.")
 basis = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, -1, 0, 0), (0, 0, 0, 1)))
 basis_inverse = basis.inverted()
+normalization = Matrix(((normalization_scale, 0, 0, -center[0] * normalization_scale),
+                        (0, normalization_scale, 0, -center[1] * normalization_scale),
+                        (0, 0, normalization_scale, -center[2] * normalization_scale),
+                        (0, 0, 0, 1)))
+normalization_inverse = normalization.inverted()
 with open(skin_path, "w", encoding="utf-8") as skin_file:
     skin_file.write("CSP_SKIN 1 %d %d %d %.9g\n" %
                     (vertex_offset, len(bones), frame_count, fps))
@@ -364,7 +387,7 @@ with open(skin_path, "w", encoding="utf-8") as skin_file:
                 skin_matrix = (armature.matrix_world @ pose_bone.matrix
                                @ bone.matrix_local.inverted()
                                @ armature.matrix_world.inverted())
-            engine_matrix = basis @ skin_matrix @ basis_inverse
+            engine_matrix = normalization @ basis @ skin_matrix @ basis_inverse @ normalization_inverse
             values = [engine_matrix[row][column] for row in range(4) for column in range(4)]
             skin_file.write(" ".join("%.9g" % value for value in values) + "\n")
 scene.frame_set(original_frame)
