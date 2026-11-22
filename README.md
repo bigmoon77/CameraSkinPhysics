@@ -100,3 +100,16 @@ cmake --build build --config Release
 ```
 
 The application begins in F1 mode. Press F2 to switch to the camera-surface simulation. Press Esc to close it.\n\nFor a repeatable comparison, run `CameraSkinPhysics.exe --benchmark=300`. This executes 300 fixed-60-Hz frames in F1 mode followed by 300 frames in F2 mode, then exits. The default is 300 frames per mode; values from 1 to 36,000 are accepted. Each launch creates fresh CSV files under `output/` relative to the current working directory.
+
+
+## Blender model import
+
+The parameter window provides **Blender モデルを読み込む** and **シミュレーションをやり直す** controls.
+The importer runs `blender.exe` in background mode, evaluates scene mesh objects (including modifiers),
+triangulates their evaluated geometry, and exports a temporary OBJ for the runtime loader.
+Add Blender's executable directory to `PATH` so `blender.exe` can be found.
+
+Imported OBJ geometry is centered and uniformly scaled so its largest bounding-box extent is 2 units.
+The imported model runs with the camera-surface XPBD solver (F2); the tetrahedral solver (F1)
+remains available for the built-in sphere only. The restart control relaunches the application
+with the currently imported mesh, restoring its initial particle positions and velocities.
