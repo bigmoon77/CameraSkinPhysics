@@ -39,14 +39,14 @@ namespace
     };
 
     constexpr parameter_description parameter_descriptions[parameter_count] = {
-        {L"反復回数", 1.0f, static_cast<float>(csp::max_solver_iterations), true},
-        {L"エッジ制約の緩和率", 0.0f, 1.5f, false},
-        {L"補正量の上限", 0.0001f, 0.05f, false},
-        {L"粒子の半径", 0.001f, 0.05f, false},
-        {L"接触時の押し出し量", 0.0f, 0.03f, false},
-        {L"接触時の摩擦", 0.0f, 1.0f, false},
-        {L"反発係数", 0.0f, 1.0f, false},
-        {L"接触判定の幅", 0.005f, 0.5f, false}
+        {L"\u53cd\u5fa9\u56de\u6570", 1.0f, static_cast<float>(csp::max_solver_iterations), true},
+        {L"\u30a8\u30c3\u30b8\u5236\u7d04\u306e\u7de9\u548c\u7387", 0.0f, 1.5f, false},
+        {L"\u88dc\u6b63\u91cf\u306e\u4e0a\u9650", 0.0001f, 0.05f, false},
+        {L"\u7c92\u5b50\u306e\u534a\u5f84", 0.001f, 0.05f, false},
+        {L"\u63a5\u89e6\u6642\u306e\u62bc\u3057\u51fa\u3057\u91cf", 0.0f, 0.03f, false},
+        {L"\u63a5\u89e6\u6642\u306e\u6469\u64e6", 0.0f, 1.0f, false},
+        {L"\u53cd\u767a\u4fc2\u6570", 0.0f, 1.0f, false},
+        {L"\u63a5\u89e6\u5224\u5b9a\u306e\u5e45", 0.005f, 0.5f, false}
     };
 
     float get_parameter_value(const csp::simulation_parameters& parameters, int index)
@@ -102,10 +102,10 @@ namespace
         const csp::performance_metrics metrics = active_renderer->get_performance_metrics();
         std::wostringstream text;
         text << std::fixed << std::setprecision(2)
-            << L"CPUフレーム " << metrics.cpu_frame_ms << L" ms    GPU合計 " << metrics.gpu_total_ms << L" ms\n"
-            << L"シミュレーション " << metrics.gpu_simulation_ms << L" ms    接触処理 "
-            << metrics.gpu_collision_ms << L" ms    描画 " << metrics.gpu_render_ms << L" ms\n"
-            << L"制約計算 " << metrics.camera_constraint_solve_ms << L" ms    補正集約 "
+            << L"CPU\u30d5\u30ec\u30fc\u30e0 " << metrics.cpu_frame_ms << L" ms    GPU\u5408\u8a08 " << metrics.gpu_total_ms << L" ms\n"
+            << L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3 " << metrics.gpu_simulation_ms << L" ms    \u63a5\u89e6\u51e6\u7406 "
+            << metrics.gpu_collision_ms << L" ms    \u63cf\u753b " << metrics.gpu_render_ms << L" ms\n"
+            << L"\u5236\u7d04\u8a08\u7b97 " << metrics.camera_constraint_solve_ms << L" ms    \u88dc\u6b63\u96c6\u7d04 "
             << metrics.camera_gather_ms << L" ms";
         SetWindowTextW(performance_label, text.str().c_str());
     }
@@ -148,12 +148,12 @@ namespace
                 SendMessageW(parameter_sliders[index], TBM_SETRANGE, TRUE, MAKELONG(0, 1000));
                 SendMessageW(parameter_sliders[index], TBM_SETTICFREQ, 100, 0);
             }
-            CreateWindowExW(0, L"BUTTON", L"パラメータを初期化",
+            CreateWindowExW(0, L"BUTTON", L"\u30d1\u30e9\u30e1\u30fc\u30bf\u3092\u521d\u671f\u5316",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                 16, 18 + parameter_count * 76, 240, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_reset_id)),
                 GetModuleHandleW(nullptr), nullptr);
-            pause_button = CreateWindowExW(0, L"BUTTON", L"シミュレーションを一時停止",
+            pause_button = CreateWindowExW(0, L"BUTTON", L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u3092\u4e00\u6642\u505c\u6b62",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                 280, 18 + parameter_count * 76, 240, 32, window,
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(parameter_pause_id)),
@@ -183,7 +183,7 @@ namespace
             {
                 active_renderer->set_simulation_paused(!active_renderer->is_simulation_paused());
                 SetWindowTextW(pause_button, active_renderer->is_simulation_paused()
-                    ? L"シミュレーションを再開" : L"Pause simulation");
+                    ? L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u3092\u518d\u958b" : L"\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u3092\u4e00\u6642\u505c\u6b62");
             }
             return 0;
         }
@@ -199,10 +199,10 @@ namespace
     {
         if (active_renderer == nullptr) return;
         const wchar_t* mode_name = active_renderer->get_solver_mode() == csp::solver_mode::camera_surface
-            ? L"表面粒子 XPBD"
-            : L"四面体 XPBD";
+            ? L"\u8868\u9762\u7c92\u5b50 XPBD"
+            : L"\u56db\u9762\u4f53 XPBD";
         const std::wstring title = std::wstring(L"CameraSkinPhysics | ") + mode_name
-            + L" | F1: 四面体 XPBD  F2: 表面粒子  F3: パラメータ | output/ に計測結果";
+            + L" | F1: \u56db\u9762\u4f53 XPBD  F2: \u8868\u9762\u7c92\u5b50  F3: \u30d1\u30e9\u30e1\u30fc\u30bf | output/ \u306b\u8a08\u6e2c\u7d50\u679c";
         SetWindowTextW(window, title.c_str());
     }
 
@@ -295,7 +295,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     const DWORD window_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     AdjustWindowRect(&window_rect, window_style, FALSE);
     HWND window = CreateWindowExW(0, window_class_name,
-        L"CameraSkinPhysics - GPUソフトボディ比較",
+        L"CameraSkinPhysics - GPU\u30bd\u30d5\u30c8\u30dc\u30c7\u30a3\u6bd4\u8f03",
         window_style, CW_USEDEFAULT, CW_USEDEFAULT,
         window_rect.right - window_rect.left, window_rect.bottom - window_rect.top,
         nullptr, nullptr, instance, nullptr);
@@ -309,7 +309,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
             || surface_mesh.edge_incidence_ranges.size() != surface_mesh.vertices.size()
             || surface_mesh.incident_corrections.size() != 599988)
         {
-            MessageBoxW(window, L"球体表面のトポロジー検証に失敗しました。", L"CameraSkinPhysics",
+            MessageBoxW(window, L"\u7403\u4f53\u8868\u9762\u306e\u30c8\u30dd\u30ed\u30b8\u30fc\u691c\u8a3c\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002", L"CameraSkinPhysics",
                 MB_ICONERROR | MB_OK);
             return -1;
         }
@@ -324,7 +324,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
             surface_mesh, volume_mesh))
         {
             MessageBoxW(window,
-                L"Direct3D 12の初期化に失敗しました。GPUドライバーとDXCによるシェーダー生成を確認してください。",
+                L"Direct3D 12\u306e\u521d\u671f\u5316\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002GPU\u30c9\u30e9\u30a4\u30d0\u30fc\u3068DXC\u306b\u3088\u308b\u30b7\u30a7\u30fc\u30c0\u30fc\u751f\u6210\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
                 L"CameraSkinPhysics", MB_ICONERROR | MB_OK);
             return -1;
         }
@@ -332,7 +332,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         active_renderer = &renderer;
         update_window_title(window);
         parameter_window = CreateWindowExW(WS_EX_TOOLWINDOW,
-            parameter_window_class_name, L"CameraSkinPhysics | パラメータ",
+            parameter_window_class_name, L"CameraSkinPhysics | \u30d1\u30e9\u30e1\u30fc\u30bf",
             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
             CW_USEDEFAULT, CW_USEDEFAULT, 560, 18 + parameter_count * 76 + 105,
             window, nullptr, instance, nullptr);
@@ -410,7 +410,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
         std::wstring wide_message(static_cast<std::size_t>(std::max(required, 1)), L'\0');
         if (required > 0)
             MultiByteToWideChar(CP_UTF8, 0, message_text.c_str(), -1, wide_message.data(), required);
-        MessageBoxW(window, wide_message.c_str(), L"CameraSkinPhysics エラー", MB_ICONERROR | MB_OK);
+        MessageBoxW(window, wide_message.c_str(), L"CameraSkinPhysics \u30a8\u30e9\u30fc", MB_ICONERROR | MB_OK);
         return -1;
     }
 }
