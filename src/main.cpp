@@ -37,6 +37,7 @@ namespace
     csp::d3d12_renderer* active_renderer = nullptr;
     bool benchmark_running = false;
     std::filesystem::path active_obj_path;
+    std::filesystem::path active_skin_path;
     bool custom_model_loaded = false;
     int parameter_scroll_position = 0;
     int parameter_content_height = 0;
@@ -245,51 +246,120 @@ namespace
         return volume;
     }
 
-    bool export_blend_to_obj(const std::filesystem::path& blend_path, std::filesystem::path& obj_path)
+    bool export_blend_to_obj(const std::filesystem::path& blend_path,
+        std::filesystem::path& obj_path, std::filesystem::path& skin_path)
     {
         wchar_t blender_path[MAX_PATH]{};
         if (SearchPathW(nullptr, L"blender.exe", nullptr, MAX_PATH, blender_path, nullptr) == 0)
         {
-            MessageBoxW(parameter_window, L"blender.exe \u304c PATH \u306b\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002Blender \u306e bin \u30d5\u30a9\u30eb\u30c0\u30fc\u3092 PATH \u306b\u8ffd\u52a0\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
-                L"\u30e2\u30c7\u30eb\u8aad\u307f\u8fbc\u307f", MB_ICONERROR | MB_OK);
+            MessageBoxW(parameter_window,
+                L"blender.exe が PATH に見つかりません。blender.exe があるフォルダーを PATH に追加してください。",
+                L"モデル読み込み", MB_ICONERROR | MB_OK);
             return false;
         }
 
         wchar_t temporary_directory[MAX_PATH]{};
         if (GetTempPathW(MAX_PATH, temporary_directory) == 0) return false;
-        const std::filesystem::path script_path = std::filesystem::path(temporary_directory) / L"csp_blend_export.py";
-        obj_path = std::filesystem::path(temporary_directory) / L"csp_blend_import.obj";
+        const std::filesystem::path temp = temporary_directory;
+        const std::filesystem::path script_path = temp / L"csp_blend_export.py";
+        obj_path = temp / L"csp_blend_import.obj";
+        skin_path = temp / L"csp_blend_import.cspanim";
         std::ofstream script(script_path, std::ios::binary);
         if (!script) return false;
         script << R"PY(import bpy
 import sys
-from mathutils import Vector
+from mathutils import Matrix
+
 args = sys.argv[sys.argv.index("--") + 1:]
-output_path = args[0]
-depsgraph = bpy.context.evaluated_depsgraph_get()
+obj_path, skin_path = args
+scene = bpy.context.scene
+mesh_objects = [obj for obj in scene.objects if obj.type == "MESH"]
+armatures = []
+for obj in mesh_objects:
+    for modifier in obj.modifiers:
+        if modifier.type == "ARMATURE" and modifier.object is not None:
+            if modifier.object not in armatures:
+                armatures.append(modifier.object)
+if len(armatures) > 1:
+    raise RuntimeError("Only one shared Armature is supported per imported model.")
+armature = armatures[0] if armatures else None
+bones = list(armature.data.bones) if armature is not None else []
+if len(bones) > 512:
+    raise RuntimeError("The imported Armature exceeds 512 bones.")
+bone_indices = {bone.name: index for index, bone in enumerate(bones)}
+
+vertex_weights = []
 vertex_offset = 0
-with open(output_path, "w", encoding="utf-8") as output:
-    for obj in bpy.context.scene.objects:
-        if obj.type != "MESH":
-            continue
-        evaluated = obj.evaluated_get(depsgraph)
-        mesh = evaluated.to_mesh()
+with open(obj_path, "w", encoding="utf-8") as obj_file:
+    for obj in mesh_objects:
+        mesh = obj.data
         mesh.calc_loop_triangles()
-        matrix = evaluated.matrix_world
+        world = obj.matrix_world
         for vertex in mesh.vertices:
-            p = matrix @ vertex.co
-            output.write("v %.9g %.9g %.9g\n" % (p.x, p.z, -p.y))
+            point = world @ vertex.co
+            obj_file.write("v %.9g %.9g %.9g\n" % (point.x, point.z, -point.y))
+            influences = []
+            if armature is not None:
+                for group in vertex.groups:
+                    group_name = obj.vertex_groups[group.group].name
+                    bone_index = bone_indices.get(group_name)
+                    if bone_index is not None and group.weight > 0.0:
+                        influences.append((bone_index, group.weight))
+            influences.sort(key=lambda item: item[1], reverse=True)
+            influences = influences[:4]
+            total = sum(weight for _, weight in influences)
+            if total > 1.0e-8:
+                influences = [(index, weight / total) for index, weight in influences]
+            else:
+                influences = []
+            while len(influences) < 4:
+                influences.append((0, 0.0))
+            vertex_weights.append(influences)
         for triangle in mesh.loop_triangles:
             a, b, c = [vertex_offset + index + 1 for index in triangle.vertices]
-            output.write("f %d %d %d\n" % (a, b, c))
+            obj_file.write("f %d %d %d\n" % (a, b, c))
         vertex_offset += len(mesh.vertices)
-        evaluated.to_mesh_clear()
+
+original_frame = scene.frame_current
+fps = scene.render.fps / scene.render.fps_base
+frame_start = scene.frame_start
+frame_end = scene.frame_end
+frame_count = frame_end - frame_start + 1 if bones else 0
+if frame_count > 6000:
+    raise RuntimeError("The animation range exceeds 6000 sampled frames.")
+basis = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, -1, 0, 0), (0, 0, 0, 1)))
+basis_inverse = basis.inverted()
+with open(skin_path, "w", encoding="utf-8") as skin_file:
+    skin_file.write("CSP_SKIN 1 %d %d %d %.9g\n" %
+                    (vertex_offset, len(bones), frame_count, fps))
+    skin_file.write("BONES\n")
+    for bone in bones:
+        parent_index = bone_indices[bone.parent.name] if bone.parent is not None else -1
+        skin_file.write("%s %d\n" % (repr(bone.name), parent_index))
+    skin_file.write("WEIGHTS\n")
+    for influences in vertex_weights:
+        skin_file.write(" ".join("%d %.9g" % item for item in influences) + "\n")
+    skin_file.write("FRAMES\n")
+    for frame in range(frame_start, frame_end + 1) if bones else []:
+        scene.frame_set(frame)
+        for bone in bones:
+            pose_bone = armature.pose.bones.get(bone.name)
+            if pose_bone is None:
+                skin_matrix = Matrix.Identity(4)
+            else:
+                skin_matrix = (armature.matrix_world @ pose_bone.matrix
+                               @ bone.matrix_local.inverted()
+                               @ armature.matrix_world.inverted())
+            engine_matrix = basis @ skin_matrix @ basis_inverse
+            values = [engine_matrix[row][column] for row in range(4) for column in range(4)]
+            skin_file.write(" ".join("%.9g" % value for value in values) + "\n")
+scene.frame_set(original_frame)
 )PY";
         script.close();
 
         std::wstring command = L"\"" + std::wstring(blender_path) + L"\" --background \""
             + blend_path.wstring() + L"\" --python \"" + script_path.wstring()
-            + L"\" -- \"" + obj_path.wstring() + L"\"";
+            + L"\" -- \"" + obj_path.wstring() + L"\" \"" + skin_path.wstring() + L"\"";
         STARTUPINFOW startup{};
         startup.cb = sizeof(startup);
         PROCESS_INFORMATION process{};
@@ -301,7 +371,8 @@ with open(output_path, "w", encoding="utf-8") as output:
         GetExitCodeProcess(process.hProcess, &exit_code);
         CloseHandle(process.hThread);
         CloseHandle(process.hProcess);
-        return exit_code == 0 && std::filesystem::exists(obj_path);
+        return exit_code == 0 && std::filesystem::exists(obj_path)
+            && std::filesystem::exists(skin_path);
     }
 
     bool choose_blend_model()
@@ -316,11 +387,16 @@ with open(output_path, "w", encoding="utf-8") as output:
         dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
         if (!GetOpenFileNameW(&dialog)) return false;
         std::filesystem::path obj_path;
-        if (!export_blend_to_obj(file_path, obj_path)) return false;
+        std::filesystem::path skin_path;
+        if (!export_blend_to_obj(file_path, obj_path, skin_path)) return false;
         try
         {
-            csp::sphere_mesh mesh = csp::load_obj_mesh(obj_path);
+            const csp::sphere_mesh mesh = csp::load_obj_mesh(obj_path);
+            const csp::skeletal_animation animation =
+                csp::load_skeletal_animation(skin_path, static_cast<std::uint32_t>(mesh.vertices.size()));
             if (mesh.vertices.empty() || mesh.indices.empty()) return false;
+            if (!animation.bones.empty() && animation.frames.empty())
+                throw std::runtime_error("Armature animation contains no sampled frames.");
         }
         catch (const std::exception& exception)
         {
@@ -328,6 +404,7 @@ with open(output_path, "w", encoding="utf-8") as output:
             return false;
         }
         active_obj_path = obj_path;
+        active_skin_path = skin_path;
         custom_model_loaded = true;
         return true;
     }
@@ -339,6 +416,8 @@ with open(output_path, "w", encoding="utf-8") as output:
         std::wstring command = L"\"" + std::wstring(executable) + L"\"";
         if (!active_obj_path.empty())
             command += L" --obj \"" + active_obj_path.wstring() + L"\"";
+        if (!active_skin_path.empty())
+            command += L" --skin \"" + active_skin_path.wstring() + L"\"";
         STARTUPINFOW startup{};
         startup.cb = sizeof(startup);
         PROCESS_INFORMATION process{};
