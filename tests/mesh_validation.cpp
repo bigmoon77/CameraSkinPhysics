@@ -1,4 +1,5 @@
 #include "sphere_mesh.hpp"
+#include "shape_matching.hpp"
 #include "tetrahedral_mesh.hpp"
 
 #include <algorithm>
@@ -59,6 +60,79 @@ int main()
         "closed sphere winding must be consistent across shared edges");
     check(surface.topology.signed_rest_volume > 0.0f,
         "outward sphere winding must produce positive signed volume");
+
+    const csp::shape_matching_clusters shape_clusters =
+        csp::build_shape_matching_clusters(surface, 128u, 1u);
+    check(!shape_clusters.cluster_vertex_ranges.empty(),
+        "shape matching must generate at least one connected cluster");
+    check(shape_clusters.vertex_cluster_ranges.size() == surface.vertices.size(),
+        "shape matching vertex CSR must cover every surface vertex");
+    check(!shape_clusters.cluster_vertices.empty(),
+        "shape matching clusters must contain surface vertices");
+    check(shape_clusters.vertex_clusters.size() >= surface.vertices.size(),
+        "overlapping shape matching memberships must cover every vertex");
+
+    bool shape_clusters_valid = true;
+    std::uint64_t shape_membership_total = 0;
+    for (std::size_t cluster_index = 0;
+        cluster_index < shape_clusters.cluster_vertex_ranges.size(); ++cluster_index)
+    {
+        const csp::mesh_uint2 range = shape_clusters.cluster_vertex_ranges[cluster_index];
+        if (static_cast<std::size_t>(range.x) + range.y > shape_clusters.cluster_vertices.size()
+            || range.y == 0u)
+        {
+            shape_clusters_valid = false;
+            break;
+        }
+        for (std::uint32_t offset = 0; offset < range.y; ++offset)
+        {
+            if (shape_clusters.cluster_vertices[range.x + offset] >= surface.vertices.size())
+            {
+                shape_clusters_valid = false;
+                break;
+            }
+        }
+        if (!shape_clusters_valid) break;
+    }
+    for (std::size_t vertex_index = 0;
+        vertex_index < shape_clusters.vertex_cluster_ranges.size(); ++vertex_index)
+    {
+        const csp::mesh_uint2 range = shape_clusters.vertex_cluster_ranges[vertex_index];
+        if (static_cast<std::size_t>(range.x) + range.y > shape_clusters.vertex_clusters.size()
+            || range.y == 0u)
+        {
+            shape_clusters_valid = false;
+            break;
+        }
+        shape_membership_total += range.y;
+        for (std::uint32_t offset = 0; offset < range.y; ++offset)
+        {
+            const std::uint32_t cluster_index = shape_clusters.vertex_clusters[range.x + offset];
+            if (cluster_index >= shape_clusters.cluster_vertex_ranges.size())
+            {
+                shape_clusters_valid = false;
+                break;
+            }
+        }
+        if (!shape_clusters_valid) break;
+    }
+    check(shape_clusters_valid,
+        "shape matching cluster and vertex CSR entries must remain in range");
+    check(shape_membership_total == shape_clusters.cluster_vertices.size(),
+        "shape matching forward and reverse CSR must contain the same memberships");
+
+    const csp::sphere_mesh disconnected_surface = []()
+    {
+        csp::sphere_mesh value{};
+        value.vertices.resize(6);
+        value.edges = {{{0u, 1u}, 1.0f, 0.0f}, {{1u, 2u}, 1.0f, 0.0f},
+            {{3u, 4u}, 1.0f, 0.0f}, {{4u, 5u}, 1.0f, 0.0f}};
+        return value;
+    }();
+    const csp::shape_matching_clusters disconnected_clusters =
+        csp::build_shape_matching_clusters(disconnected_surface, 2u, 0u);
+    check(disconnected_clusters.cluster_vertex_ranges.size() == 4u,
+        "disconnected components must be split into independent connected clusters");
 
     bool surface_constraints_valid = true;
     for (const csp::triangle_area_constraint& area : surface.triangle_areas)
