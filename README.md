@@ -20,7 +20,7 @@ Each mode owns independent particle state. Switching to a mode for the first tim
 
 ## Live parameter controls
 
-The application opens a separate **Live Parameters** window. Use **F3** to show or hide it. Trackbars apply changes immediately to subsequent GPU dispatches.
+The application opens a separate **Live Parameters** window. Use **F3** to show or hide it. Trackbars apply changes immediately to subsequent GPU dispatches. The panel also provides **Pause simulation / Resume simulation** and **Reset parameters** controls. While paused, the last deformed pose remains visible and the GPU simulation, contact and skinning dispatches are skipped.
 
 - Solver iterations: 1–4. The upper bound currently matches the timestamp-query layout.
 - Edge relaxation: 0.0–1.5.
@@ -30,7 +30,7 @@ The application opens a separate **Live Parameters** window. Use **F3** to show 
 - Camera-surface velocity friction and restitution: 0.0–1.0.
 - Camera-surface contact band: 0.005–0.5.
 
-The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
+The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, edge-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
 
 ## Current implementation
 
