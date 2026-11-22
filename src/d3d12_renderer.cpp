@@ -1606,10 +1606,9 @@ namespace csp
                 write_buffer_srv(gather_table, 1, compute_->surface_gather_ranges.Get(),
                     compute_->vertex_count, sizeof(mesh_uint2));
                 write_buffer_srv(gather_table, 2, compute_->incident_surface_gather.Get(),
-                    static_cast<std::uint32_t>(std::max<std::size_t>(1u,
-                        surface_mesh.incident_corrections.size()
-                        + surface_mesh.incident_triangle_corners.size()
-                        + surface_mesh.incident_bending_corners.size())), sizeof(std::uint32_t));
+                    std::max(1u, compute_->edge_count * 2u
+                        + compute_->triangle_count * 3u + compute_->bending_count * 4u),
+                    sizeof(std::uint32_t));
                 write_buffer_srv(gather_table, 3, body.edge_corrections.Get(),
                     compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 4u,
                     sizeof(DirectX::XMFLOAT3));
