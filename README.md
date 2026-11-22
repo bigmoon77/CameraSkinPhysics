@@ -5,7 +5,7 @@ A Direct3D 12 soft-body prototype for comparing two GPU deformation models under
 The executable starts with two 100,000-vertex spheres. Press **F1** or **F2** to select which independent simulation is displayed.
 
 - **F1 — Tetrahedral XPBD:** an interior particle lattice is solved with one tetrahedron volume constraint and six local edge-length constraints per tetrahedron. A CSR gather pass accumulates constraint corrections without floating-point atomics. A barycentric mapping skins the render surface.
-- **F2 — Camera surface:** the 100,000 render vertices are the simulation particles. Unique triangle edges provide XPBD edge-length constraints, and each triangle adds an XPBD rest-area constraint. A combined vertex CSR gather accumulates edge and area corrections without floating-point atomics. This mode has no tetrahedral interior mesh.
+- **F2 — Camera surface:** the 100,000 render vertices are the simulation particles. Unique triangle edges provide XPBD edge-length constraints, each triangle adds a rest-area constraint, and each shared edge adds a hinge-distance bending constraint between its opposite vertices. A combined vertex CSR gather accumulates all corrections without floating-point atomics. This mode has no tetrahedral interior mesh.
 - **Shared contact:** both modes render the opposing sphere into a depth/normal target and project their particles into that target for contact correction. Both use the same camera, initial sphere centers, initial velocities, capture resolution and iteration count.
 
 Each mode owns independent particle state. Switching to a mode for the first time starts it from the same initial condition; switching back resumes that mode's previous state. Run one mode at a time for a clean benchmark.
@@ -30,7 +30,7 @@ The application opens a separate **Live Parameters** window. Use **F3** to show 
 - Camera-surface velocity friction and restitution: 0.0–1.0.
 - Camera-surface contact band: 0.005–0.5.
 
-The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, combined edge/area-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
+The collision controls currently affect Camera Surface mode. XPBD retains its existing collision constants. Use **Reset parameters** to restore defaults. The panel displays the latest CPU frame time, total GPU time, simulation, collision, render, combined surface-constraint-solve and gather timings. Every benchmark CSV row stores the parameter values active for that frame, allowing performance changes to be correlated with settings.
 
 ## Current implementation
 
