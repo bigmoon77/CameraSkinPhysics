@@ -69,8 +69,8 @@ int main()
         "shape matching vertex CSR must cover every surface vertex");
     check(!shape_clusters.cluster_vertices.empty(),
         "shape matching clusters must contain surface vertices");
-    check(shape_clusters.vertex_clusters.size() >= surface.vertices.size(),
-        "overlapping shape matching memberships must cover every vertex");
+    check(shape_clusters.vertex_clusters.size() > surface.vertices.size(),
+        "one-ring overlap must create shared memberships at cluster boundaries");
 
     bool shape_clusters_valid = true;
     std::uint64_t shape_membership_total = 0;
