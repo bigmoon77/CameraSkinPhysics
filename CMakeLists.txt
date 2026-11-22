@@ -6,6 +6,7 @@ option(CSP_BUILD_D3D12_APP "Build the Direct3D 12 demo application" ON)
 
 add_library(CameraSkinPhysicsCore
     src/sphere_mesh.cpp
+    src/shape_matching.cpp
     src/tetrahedral_mesh.cpp
     src/benchmark_log.cpp
 )
@@ -57,6 +58,8 @@ if(WIN32 AND CSP_BUILD_D3D12_APP)
     compile_hlsl(camera_surface_bending.hlsl main cs_6_0 camera_surface_bending)
     compile_hlsl(camera_surface_gather.hlsl main cs_6_0 camera_surface_gather)
     compile_hlsl(camera_surface_skin.hlsl main cs_6_0 camera_surface_skin)
+    compile_hlsl(camera_surface_shape_matching.hlsl build_transforms cs_6_0 camera_surface_shape_build)
+    compile_hlsl(camera_surface_shape_matching.hlsl apply_matching cs_6_0 camera_surface_shape_apply)
     compile_hlsl(capture_surface.hlsl VSMain vs_6_0 capture_surface_vs)
     compile_hlsl(capture_surface.hlsl PSMain ps_6_0 capture_surface_ps)
     compile_hlsl(render_sphere.hlsl VSMain vs_6_0 render_sphere_vs)
