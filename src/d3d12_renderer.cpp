@@ -1996,7 +1996,8 @@ namespace csp
                             compute_->vertex_count, 0x3F266666u, 0u, 0u
                         };
                         dispatch_compute(compute_->camera_contact_smooth_pipeline.Get(),
-                            smooth_table, smooth_values, 4, particle_groups);
+                            smooth_table, smooth_values, 4,
+                            (compute_->vertex_count + 255u) / 256u);
 
                         transition_resource(correction_output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                             D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -2024,7 +2025,8 @@ namespace csp
                         compute_->vertex_count, 0u, 0u, 0u
                     };
                     dispatch_compute(compute_->camera_contact_apply_pipeline.Get(),
-                        apply_table, apply_values, 4, particle_groups);
+                        apply_table, apply_values, 4,
+                        (compute_->vertex_count + 255u) / 256u);
                     transition_resource(apply_output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                     *particle_read = apply_output_index;
