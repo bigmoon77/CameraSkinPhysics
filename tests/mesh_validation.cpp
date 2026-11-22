@@ -41,7 +41,7 @@ int main()
     check(surface.edges.size() == 299994, "default sphere must contain 299,994 unique surface edges");
     check(surface.edge_incidence_ranges.size() == surface.vertices.size(),
         "surface edge incidence range count must match vertex count");
-    check(surface.incident_edges.size() == surface.edges.size() * 2,
+    check(surface.incident_corrections.size() == surface.edges.size() * 2,
         "each surface edge must have exactly two incidence entries");
 
     bool surface_edges_valid = true;
@@ -78,7 +78,7 @@ int main()
     check(coarse_surface.vertices.size() == 96, "coarse sphere vertex count must match its resolution");
     check(coarse_surface.indices.size() == 564, "coarse sphere index count must match its resolution");
     check(coarse_surface.edges.size() == 282, "coarse sphere edge count must match its resolution");
-    check(coarse_surface.incident_edges.size() == 564,
+    check(coarse_surface.incident_corrections.size() == 564,
         "coarse sphere CSR must contain two entries per unique edge");
 
     std::uint64_t coarse_incidence_total = 0;
@@ -86,7 +86,7 @@ int main()
     for (std::size_t vertex_index = 0; vertex_index < coarse_surface.edge_incidence_ranges.size(); ++vertex_index)
     {
         const csp::mesh_uint2 range = coarse_surface.edge_incidence_ranges[vertex_index];
-        if (static_cast<std::size_t>(range.x) + range.y > coarse_surface.incident_edges.size())
+        if (static_cast<std::size_t>(range.x) + range.y > coarse_surface.incident_corrections.size())
         {
             coarse_incidence_valid = false;
             break;
@@ -94,14 +94,15 @@ int main()
         coarse_incidence_total += range.y;
         for (std::uint32_t offset = 0; offset < range.y; ++offset)
         {
-            const std::uint32_t edge_index = coarse_surface.incident_edges[range.x + offset];
-            if (edge_index >= coarse_surface.edges.size())
+            const std::uint32_t correction_index = coarse_surface.incident_corrections[range.x + offset];
+            if (correction_index >= coarse_surface.edges.size() * 2u)
             {
                 coarse_incidence_valid = false;
                 break;
             }
-            const csp::surface_edge& edge = coarse_surface.edges[edge_index];
-            if (edge.indices[0] != vertex_index && edge.indices[1] != vertex_index)
+            const csp::surface_edge& edge = coarse_surface.edges[correction_index / 2u];
+            const std::uint32_t endpoint = correction_index % 2u;
+            if (edge.indices[endpoint] != vertex_index)
             {
                 coarse_incidence_valid = false;
                 break;
@@ -118,7 +119,7 @@ int main()
     for (std::size_t vertex_index = 0; vertex_index < surface.edge_incidence_ranges.size(); ++vertex_index)
     {
         const csp::mesh_uint2 range = surface.edge_incidence_ranges[vertex_index];
-        if (static_cast<std::size_t>(range.x) + range.y > surface.incident_edges.size())
+        if (static_cast<std::size_t>(range.x) + range.y > surface.incident_corrections.size())
         {
             surface_incidence_valid = false;
             break;
@@ -126,14 +127,15 @@ int main()
         surface_incidence_total += range.y;
         for (std::uint32_t offset = 0; offset < range.y; ++offset)
         {
-            const std::uint32_t edge_index = surface.incident_edges[range.x + offset];
-            if (edge_index >= surface.edges.size())
+            const std::uint32_t correction_index = surface.incident_corrections[range.x + offset];
+            if (correction_index >= surface.edges.size() * 2u)
             {
                 surface_incidence_valid = false;
                 break;
             }
-            const csp::surface_edge& edge = surface.edges[edge_index];
-            if (edge.indices[0] != vertex_index && edge.indices[1] != vertex_index)
+            const csp::surface_edge& edge = surface.edges[correction_index / 2u];
+            const std::uint32_t endpoint = correction_index % 2u;
+            if (edge.indices[endpoint] != vertex_index)
             {
                 surface_incidence_valid = false;
                 break;
