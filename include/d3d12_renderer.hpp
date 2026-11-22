@@ -29,6 +29,18 @@ namespace csp
         float contact_band = 0.10f;
     };
 
+    struct performance_metrics
+    {
+        double cpu_frame_ms = 0.0;
+        double gpu_simulation_ms = 0.0;
+        double camera_edge_solve_ms = 0.0;
+        double camera_gather_ms = 0.0;
+        double gpu_depth_capture_ms = 0.0;
+        double gpu_collision_ms = 0.0;
+        double gpu_render_ms = 0.0;
+        double gpu_total_ms = 0.0;
+    };
+
     class d3d12_renderer
     {
     public:
@@ -44,6 +56,7 @@ namespace csp
         solver_mode get_solver_mode() const;
         void set_simulation_parameters(const simulation_parameters& parameters);
         simulation_parameters get_simulation_parameters() const;
+        performance_metrics get_performance_metrics() const;
         void wait_gpu();
 
     private:
@@ -119,5 +132,6 @@ namespace csp
         HANDLE fence_event_ = nullptr;
         solver_mode solver_mode_ = solver_mode::tetrahedral_xpbd;
         simulation_parameters simulation_parameters_{};
+        performance_metrics performance_metrics_{};
     };
 }
