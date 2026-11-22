@@ -6,6 +6,7 @@
 #include <d3d12sdklayers.h>
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
