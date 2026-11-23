@@ -1835,6 +1835,10 @@ namespace csp
         performance_metrics_.gpu_collision_ms = static_cast<double>(collision_ticks) * ticks_to_ms;
         performance_metrics_.gpu_collision_compute_ms = static_cast<double>(collision_compute_ticks) * ticks_to_ms;
         performance_metrics_.gpu_contact_apply_ms = static_cast<double>(contact_apply_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_post_collision_skinning_body0_ms =
+            static_cast<double>(timestamps[14] - timestamps[13]) * ticks_to_ms;
+        performance_metrics_.gpu_post_collision_skinning_body1_ms =
+            static_cast<double>(timestamps[16] - timestamps[15]) * ticks_to_ms;
         performance_metrics_.gpu_post_collision_skinning_ms =
             static_cast<double>(post_collision_skinning_ticks) * ticks_to_ms;
         performance_metrics_.gpu_render_ms = static_cast<double>(render_ticks) * ticks_to_ms;
@@ -1858,6 +1862,8 @@ namespace csp
             static_cast<double>(collision_ticks) * ticks_to_ms,
             static_cast<double>(collision_compute_ticks) * ticks_to_ms,
             static_cast<double>(contact_apply_ticks) * ticks_to_ms,
+            performance_metrics_.gpu_post_collision_skinning_body0_ms,
+            performance_metrics_.gpu_post_collision_skinning_body1_ms,
             static_cast<double>(post_collision_skinning_ticks) * ticks_to_ms,
             static_cast<double>(render_ticks) * ticks_to_ms,
             particle_count, tetrahedron_count,
