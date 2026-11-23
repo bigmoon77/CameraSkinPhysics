@@ -139,6 +139,13 @@ namespace csp
         };
         static_assert(sizeof(gather_constants) == 16);
 
+        struct gpu_triangle_area_constraint
+        {
+            std::uint32_t indices[3];
+            float rest_area;
+        };
+        static_assert(sizeof(gpu_triangle_area_constraint) == 16);
+
         struct camera_area_constants
         {
             std::uint32_t triangle_count;
@@ -286,7 +293,7 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_rest_positions;
         DirectX::XMFLOAT4* mapped_surface_rest_positions = nullptr;
         surface_edge* mapped_surface_edges = nullptr;
-        triangle_area_constraint* mapped_surface_triangle_areas = nullptr;
+        gpu_triangle_area_constraint* mapped_surface_triangle_areas = nullptr;
         bending_constraint* mapped_surface_bending = nullptr;
         skeletal_animation animation;
         std::vector<std::array<float, 3>> skeletal_rest_positions;
@@ -829,7 +836,18 @@ namespace csp
             incident_surface_neighbors.push_back(neighbor_index);
         }
         compute_->incident_surface_neighbors = upload_vector(incident_surface_neighbors);
-        compute_->surface_triangle_areas = upload_vector(surface_mesh.triangle_areas);
+        std::vector<gpu_triangle_area_constraint> triangle_area_upload;
+        triangle_area_upload.reserve(surface_mesh.triangle_areas.size());
+        for (const triangle_area_constraint& triangle : surface_mesh.triangle_areas)
+        {
+            gpu_triangle_area_constraint gpu_triangle{};
+            gpu_triangle.indices[0] = triangle.indices[0];
+            gpu_triangle.indices[1] = triangle.indices[1];
+            gpu_triangle.indices[2] = triangle.indices[2];
+            gpu_triangle.rest_area = triangle.rest_area;
+            triangle_area_upload.push_back(gpu_triangle);
+        }
+        compute_->surface_triangle_areas = upload_vector(triangle_area_upload);
         compute_->surface_triangle_ranges = upload_vector(surface_mesh.triangle_incidence_ranges);
         compute_->incident_surface_triangles = upload_vector(surface_mesh.incident_triangle_corners);
         std::vector<bending_constraint> bending_upload = surface_mesh.bending;
@@ -862,7 +880,7 @@ namespace csp
         compute_->mapped_surface_edges = static_cast<surface_edge*>(mapped_data);
         mapped_data = nullptr;
         if (FAILED(compute_->surface_triangle_areas->Map(0, &no_read_range, &mapped_data))) return false;
-        compute_->mapped_surface_triangle_areas = static_cast<triangle_area_constraint*>(mapped_data);
+        compute_->mapped_surface_triangle_areas = static_cast<gpu_triangle_area_constraint*>(mapped_data);
         mapped_data = nullptr;
         if (FAILED(compute_->surface_bending->Map(0, &no_read_range, &mapped_data))) return false;
         compute_->mapped_surface_bending = static_cast<bending_constraint*>(mapped_data);
@@ -1368,7 +1386,7 @@ namespace csp
 
         for (std::uint32_t triangle_index = 0; triangle_index < compute_->triangle_count; ++triangle_index)
         {
-            triangle_area_constraint& triangle = compute_->mapped_surface_triangle_areas[triangle_index];
+            gpu_triangle_area_constraint& triangle = compute_->mapped_surface_triangle_areas[triangle_index];
             const DirectX::XMFLOAT4& a = position_at(triangle.indices[0]);
             const DirectX::XMFLOAT4& b = position_at(triangle.indices[1]);
             const DirectX::XMFLOAT4& c = position_at(triangle.indices[2]);
@@ -1527,7 +1545,7 @@ namespace csp
                 write_buffer_srv(area_table, 0, body.particles[body.particle_read].Get(),
                     compute_->vertex_count, sizeof(simulation_particle));
                 write_buffer_srv(area_table, 1, compute_->surface_triangle_areas.Get(),
-                    compute_->triangle_count, sizeof(triangle_area_constraint));
+                    compute_->triangle_count, sizeof(gpu_triangle_area_constraint));
                 write_buffer_srv(area_table, 2, body.area_lambdas[area_lambda_read].Get(),
                     compute_->triangle_count, sizeof(float));
                 write_buffer_uav(area_table, 0, body.edge_corrections.Get(),
@@ -1718,7 +1736,7 @@ namespace csp
         write_buffer_srv(face_table, 0, body.particles[body.particle_read].Get(),
             compute_->vertex_count, sizeof(simulation_particle));
         write_buffer_srv(face_table, 1, compute_->surface_triangle_areas.Get(),
-            compute_->triangle_count, sizeof(triangle_area_constraint));
+            compute_->triangle_count, sizeof(gpu_triangle_area_constraint));
         write_buffer_uav(face_table, 0, body.face_normals.Get(),
             compute_->triangle_count, sizeof(DirectX::XMFLOAT4));
         const std::uint32_t triangle_count = compute_->triangle_count;
