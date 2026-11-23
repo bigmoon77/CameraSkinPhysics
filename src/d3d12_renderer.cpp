@@ -304,7 +304,7 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_mappings;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_edges;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_edge_ranges;
-        Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_corrections;
+        Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_neighbors;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_triangle_areas;
         Microsoft::WRL::ComPtr<ID3D12Resource> surface_triangle_ranges;
         Microsoft::WRL::ComPtr<ID3D12Resource> incident_surface_triangles;
@@ -812,7 +812,21 @@ namespace csp
         compute_->surface_mappings = upload_vector(volume_mesh.surface_mappings);
         compute_->surface_edges = upload_vector(surface_mesh.edges);
         compute_->surface_edge_ranges = upload_vector(surface_mesh.edge_incidence_ranges);
-        compute_->incident_surface_corrections = upload_vector(surface_mesh.incident_corrections);
+        std::vector<std::uint32_t> incident_surface_neighbors;
+        incident_surface_neighbors.reserve(surface_mesh.incident_corrections.size());
+        for (const std::uint32_t encoded_edge : surface_mesh.incident_corrections)
+        {
+            const std::uint32_t edge_index = encoded_edge >> 1u;
+            if (edge_index >= surface_mesh.edges.size())
+                return false;
+            const surface_edge& edge = surface_mesh.edges[edge_index];
+            const std::uint32_t neighbor_index = (encoded_edge & 1u) != 0u
+                ? edge.indices[0] : edge.indices[1];
+            if (neighbor_index >= surface_mesh.vertices.size())
+                return false;
+            incident_surface_neighbors.push_back(neighbor_index);
+        }
+        compute_->incident_surface_neighbors = upload_vector(incident_surface_neighbors);
         compute_->surface_triangle_areas = upload_vector(surface_mesh.triangle_areas);
         compute_->surface_triangle_ranges = upload_vector(surface_mesh.triangle_incidence_ranges);
         compute_->incident_surface_triangles = upload_vector(surface_mesh.incident_triangle_corners);
@@ -830,7 +844,7 @@ namespace csp
             || !compute_->tetrahedron_indices || !compute_->surface_mappings
             || !compute_->surface_rest_positions || !compute_->shape_cluster_ranges
             || !compute_->shape_cluster_vertices || !compute_->vertex_cluster_ranges || !compute_->vertex_clusters
-            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_corrections
+            || !compute_->surface_edges || !compute_->surface_edge_ranges || !compute_->incident_surface_neighbors
             || !compute_->surface_triangle_areas || !compute_->surface_triangle_ranges
             || !compute_->incident_surface_triangles || !compute_->surface_bending
             || !compute_->surface_bending_ranges || !compute_->incident_surface_bending)
@@ -1062,7 +1076,7 @@ namespace csp
         }
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edge_ranges.Get());
-        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_corrections.Get());
+        compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_neighbors.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_triangle_areas.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_triangle_ranges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->incident_surface_triangles.Get());
@@ -1580,7 +1594,7 @@ namespace csp
                     compute_->vertex_count, sizeof(simulation_particle));
                 write_buffer_srv(gather_table, 1, compute_->surface_edge_ranges.Get(),
                     compute_->vertex_count, sizeof(mesh_uint2));
-                write_buffer_srv(gather_table, 2, compute_->incident_surface_corrections.Get(),
+                write_buffer_srv(gather_table, 2, compute_->incident_surface_neighbors.Get(),
                     std::max(1u, compute_->edge_count * 2u), sizeof(std::uint32_t));
                 write_buffer_srv(gather_table, 3, body.edge_corrections.Get(),
                     compute_->edge_count + compute_->triangle_count * 3u + compute_->bending_count * 2u,
@@ -2047,10 +2061,8 @@ namespace csp
                         compute_->vertex_count, sizeof(DirectX::XMFLOAT4));
                     write_buffer_srv(apply_table, 1, compute_->surface_edge_ranges.Get(),
                         compute_->vertex_count, sizeof(mesh_uint2));
-                    write_buffer_srv(apply_table, 2, compute_->incident_surface_corrections.Get(),
+                    write_buffer_srv(apply_table, 2, compute_->incident_surface_neighbors.Get(),
                         compute_->edge_count * 2u, sizeof(std::uint32_t));
-                    write_buffer_srv(apply_table, 3, compute_->surface_edges.Get(),
-                        compute_->edge_count, sizeof(surface_edge));
                     write_buffer_srv(apply_table, 4, body.particles[*particle_read].Get(),
                         compute_->vertex_count, sizeof(simulation_particle));
                     write_buffer_uav(apply_table, 1, apply_output,
