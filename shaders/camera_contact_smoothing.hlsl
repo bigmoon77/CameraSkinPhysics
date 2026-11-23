@@ -13,8 +13,7 @@ struct SurfaceEdge
 
 StructuredBuffer<float4> g_corrections : register(t0);
 StructuredBuffer<uint2> g_edge_ranges : register(t1);
-StructuredBuffer<uint> g_incident_edge_corrections : register(t2);
-StructuredBuffer<SurfaceEdge> g_surface_edges : register(t3);
+StructuredBuffer<uint> g_incident_neighbors : register(t2);
 StructuredBuffer<Particle> g_particles_in : register(t4);
 RWStructuredBuffer<Particle> g_particles_out : register(u1);
 
@@ -40,10 +39,7 @@ void apply_corrections(uint3 dispatch_id : SV_DispatchThreadID)
     const uint2 range = g_edge_ranges[index];
     for (uint offset = 0; offset < range.y; ++offset)
     {
-        const uint encoded_edge = g_incident_edge_corrections[range.x + offset];
-        const SurfaceEdge edge = g_surface_edges[encoded_edge >> 1u];
-        const uint neighbor_index = (encoded_edge & 1u) != 0u
-            ? edge.indices.x : edge.indices.y;
+        const uint neighbor_index = g_incident_neighbors[range.x + offset];
         if (neighbor_index >= particle_count || neighbor_index == index)
             continue;
 
