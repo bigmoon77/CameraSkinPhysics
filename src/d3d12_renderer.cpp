@@ -436,10 +436,10 @@ namespace csp
             || !create_compute_resources(surface_mesh, volume_mesh, animation)) return false;
 
         D3D12_QUERY_HEAP_DESC query_description{};
-        query_description.Count = 13u + max_solver_iterations * 2u * 8u;
+        query_description.Count = 17u + max_solver_iterations * 2u * 8u;
         query_description.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
         if (FAILED(device_->CreateQueryHeap(&query_description, IID_PPV_ARGS(&timestamp_query_heap_)))) return false;
-        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * (13u + max_solver_iterations * 2u * 8u),
+        timestamp_readback_ = create_buffer(device_.Get(), sizeof(std::uint64_t) * (17u + max_solver_iterations * 2u * 8u),
             D3D12_HEAP_TYPE_READBACK, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST);
         if (!timestamp_readback_) return false;
         if (FAILED(command_queue_->GetTimestampFrequency(&timestamp_frequency_))) timestamp_frequency_ = 0;
@@ -1783,7 +1783,7 @@ namespace csp
             solver_mode_ == solver_mode::camera_surface ? 1u : 0u;
         if (!compute_->logs[mode_index]) return;
 
-        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * (13u + max_solver_iterations * 2u * 8u)};
+        const D3D12_RANGE read_range{0, sizeof(std::uint64_t) * (17u + max_solver_iterations * 2u * 8u)};
         std::uint64_t* timestamps = nullptr;
         if (FAILED(timestamp_readback_->Map(0, &read_range, reinterpret_cast<void**>(&timestamps)))) return;
 
@@ -1801,6 +1801,12 @@ namespace csp
                 contact_apply_ticks = (timestamps[10] - timestamps[9])
                     + (timestamps[12] - timestamps[11]);
         }
+        std::uint64_t post_collision_skinning_ticks = 0;
+        if (!simulation_paused_)
+        {
+            post_collision_skinning_ticks = (timestamps[14] - timestamps[13])
+                + (timestamps[16] - timestamps[15]);
+        }
         std::uint64_t camera_edge_ticks = 0;
         std::uint64_t camera_area_ticks = 0;
         std::uint64_t camera_bending_ticks = 0;
@@ -1809,7 +1815,7 @@ namespace csp
         {
             for (std::uint32_t dispatch_index = 0; dispatch_index < simulation_parameters_.solver_iterations * 2u; ++dispatch_index)
             {
-                const std::uint32_t query_base = 13u + dispatch_index * 8u;
+                const std::uint32_t query_base = 17u + dispatch_index * 8u;
                 camera_edge_ticks += timestamps[query_base + 1u] - timestamps[query_base];
                 camera_area_ticks += timestamps[query_base + 3u] - timestamps[query_base + 2u];
                 camera_bending_ticks += timestamps[query_base + 5u] - timestamps[query_base + 4u];
@@ -1829,6 +1835,8 @@ namespace csp
         performance_metrics_.gpu_collision_ms = static_cast<double>(collision_ticks) * ticks_to_ms;
         performance_metrics_.gpu_collision_compute_ms = static_cast<double>(collision_compute_ticks) * ticks_to_ms;
         performance_metrics_.gpu_contact_apply_ms = static_cast<double>(contact_apply_ticks) * ticks_to_ms;
+        performance_metrics_.gpu_post_collision_skinning_ms =
+            static_cast<double>(post_collision_skinning_ticks) * ticks_to_ms;
         performance_metrics_.gpu_render_ms = static_cast<double>(render_ticks) * ticks_to_ms;
         performance_metrics_.gpu_total_ms = performance_metrics_.gpu_simulation_ms
             + performance_metrics_.gpu_depth_capture_ms + performance_metrics_.gpu_collision_ms
@@ -1850,6 +1858,7 @@ namespace csp
             static_cast<double>(collision_ticks) * ticks_to_ms,
             static_cast<double>(collision_compute_ticks) * ticks_to_ms,
             static_cast<double>(contact_apply_ticks) * ticks_to_ms,
+            static_cast<double>(post_collision_skinning_ticks) * ticks_to_ms,
             static_cast<double>(render_ticks) * ticks_to_ms,
             particle_count, tetrahedron_count,
             mode_index == 1u ? compute_->camera_surface_buffer_bytes : compute_->tetrahedral_buffer_bytes,
@@ -2035,13 +2044,21 @@ namespace csp
 
             if (use_camera_surface)
             {
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 13);
                 skin_camera_body(0);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 14);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 15);
                 skin_camera_body(1);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 16);
             }
             else
             {
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 13);
                 skin_body(0);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 14);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 15);
                 skin_body(1);
+                command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 16);
             }
             command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 3);
         }
@@ -2106,7 +2123,7 @@ namespace csp
 
         command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 4);
         command_list_->ResolveQueryData(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
-            0, 13u + max_solver_iterations * 2u * 8u, timestamp_readback_.Get(), 0);
+            0, 17u + max_solver_iterations * 2u * 8u, timestamp_readback_.Get(), 0);
 
         back_buffer_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         back_buffer_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
