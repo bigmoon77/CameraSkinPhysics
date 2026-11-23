@@ -60,7 +60,7 @@ int main()
     {
         csp::benchmark_log log(path);
         log.write_frame(1, 10.0, 1.0, 0.25, 0.05, 0.10, 0.10, 0.5,
-            2.0, 3.0, 1.25, 1.75, 4.0, 200000, 0, 123456, 987654,
+            2.0, 3.0, 1.25, 1.75, 0.65, 4.0, 200000, 0, 123456, 987654,
             4, 0.8f, 0.008f, 0.012f, 0.006f, 0.12f, 0.18f, 0.10f, 0.08f, 512);
     }
 
@@ -88,6 +88,8 @@ int main()
         "CSV header must include collision compute time");
     check(header.find("gpu_contact_apply_ms") != std::string::npos,
         "CSV header must include contact apply time");
+    check(header.find("gpu_post_collision_skinning_ms") != std::string::npos,
+        "CSV header must include post-collision skinning time");
     check(header.find("capture_resolution") != std::string::npos,
         "CSV header must include collision capture resolution");
     check(header.find("gpu_total_ms") != std::string::npos, "CSV header must include total GPU time");
@@ -104,7 +106,7 @@ int main()
     check(extra.empty(), "CSV must contain exactly one data row");
 
     const std::vector<std::string> columns = split_csv_line(row);
-    check(columns.size() == 30, "CSV data row must contain thirty columns");
+    check(columns.size() == 31, "CSV data row must contain thirty columns");
     check(parse_number(columns, 0) == 1.0, "frame index must be recorded");
     check(std::abs(parse_number(columns, 2) - 100.0) < 1.0e-9,
         "CPU FPS must be derived from CPU frame time");
@@ -124,22 +126,24 @@ int main()
         "collision compute time must be recorded");
     check(std::abs(parse_number(columns, 12) - 1.75) < 1.0e-9,
         "contact apply time must be recorded");
-    check(std::abs(parse_number(columns, 14) - 10.0) < 1.0e-9,
+    check(std::abs(parse_number(columns, 13) - 0.65) < 1.0e-9,
+        "post-collision skinning time must be recorded");
+    check(std::abs(parse_number(columns, 15) - 10.0) < 1.0e-9,
         "GPU total time must sum the four top-level GPU intervals");
-    check(std::abs(parse_number(columns, 15) - 100.0) < 1.0e-9,
+    check(std::abs(parse_number(columns, 16) - 100.0) < 1.0e-9,
         "GPU FPS must be derived from total GPU time");
-    check(parse_number(columns, 16) == 200000.0, "particle count must be recorded");
-    check(parse_number(columns, 17) == 0.0, "tetrahedron count must be recorded");
-    check(parse_number(columns, 18) == 123456.0, "selected solver memory must be recorded");
-    check(parse_number(columns, 19) == 987654.0, "resident simulation memory must be recorded");
-    check(parse_number(columns, 20) == 4.0, "solver iteration count must be recorded");
-    check(std::abs(parse_number(columns, 21) - 0.8) < 1.0e-6,
+    check(parse_number(columns, 17) == 200000.0, "particle count must be recorded");
+    check(parse_number(columns, 18) == 0.0, "tetrahedron count must be recorded");
+    check(parse_number(columns, 19) == 123456.0, "selected solver memory must be recorded");
+    check(parse_number(columns, 20) == 987654.0, "resident simulation memory must be recorded");
+    check(parse_number(columns, 21) == 4.0, "solver iteration count must be recorded");
+    check(std::abs(parse_number(columns, 22) - 0.8) < 1.0e-6,
         "edge relaxation must be recorded");
-    check(std::abs(parse_number(columns, 27) - 0.10) < 1.0e-6,
+    check(std::abs(parse_number(columns, 28) - 0.10) < 1.0e-6,
         "contact band must be recorded");
-    check(std::abs(parse_number(columns, 28) - 0.08) < 1.0e-6,
+    check(std::abs(parse_number(columns, 29) - 0.08) < 1.0e-6,
         "cluster shape matching strength must be recorded");
-    check(parse_number(columns, 29) == 512.0,
+    check(parse_number(columns, 30) == 512.0,
         "capture resolution must be recorded");
 
     input.close();
