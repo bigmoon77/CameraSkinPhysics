@@ -26,10 +26,10 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const uint triangle_index = dispatch_id.x;
     if (triangle_index >= triangle_count) return;
 
-    const TriangleArea triangle = g_triangles[triangle_index];
-    const float3 a = g_particles[triangle.indices.x].position.xyz;
-    const float3 b = g_particles[triangle.indices.y].position.xyz;
-    const float3 c = g_particles[triangle.indices.z].position.xyz;
+    const TriangleArea triangle_data = g_triangles[triangle_index];
+    const float3 a = g_particles[triangle_data.indices.x].position.xyz;
+    const float3 b = g_particles[triangle_data.indices.y].position.xyz;
+    const float3 c = g_particles[triangle_data.indices.z].position.xyz;
     const float3 face_normal = cross(b - a, c - a);
     g_face_normals[triangle_index] = float4(face_normal, 0.0f);
 }
