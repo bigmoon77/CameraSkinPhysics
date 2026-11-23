@@ -28,7 +28,7 @@ cbuffer BendingConstants : register(b0)
     float padding2;
 };
 
-[numthreads(256, 1, 1)]
+[numthreads(128, 1, 1)]
 void main(uint3 dispatch_id : SV_DispatchThreadID)
 {
     const uint hinge_index = dispatch_id.x;
