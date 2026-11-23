@@ -24,7 +24,7 @@ cbuffer AreaConstants : register(b0)
     float padding;
 };
 
-[numthreads(256, 1, 1)]
+[numthreads(128, 1, 1)]
 void main(uint3 dispatch_id : SV_DispatchThreadID)
 {
     const uint area_index = dispatch_id.x;
