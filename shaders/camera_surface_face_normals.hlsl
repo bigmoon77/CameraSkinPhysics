@@ -8,7 +8,6 @@ struct TriangleArea
 {
     uint3 indices;
     float rest_area;
-    float compliance;
 };
 
 StructuredBuffer<Particle> g_particles : register(t0);
