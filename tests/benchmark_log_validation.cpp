@@ -106,7 +106,7 @@ int main()
     check(extra.empty(), "CSV must contain exactly one data row");
 
     const std::vector<std::string> columns = split_csv_line(row);
-    check(columns.size() == 31, "CSV data row must contain thirty columns");
+    check(columns.size() == 31, "CSV data row must contain thirty-one columns");
     check(parse_number(columns, 0) == 1.0, "frame index must be recorded");
     check(std::abs(parse_number(columns, 2) - 100.0) < 1.0e-9,
         "CPU FPS must be derived from CPU frame time");
