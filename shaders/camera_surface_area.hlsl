@@ -37,7 +37,10 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float3 position_b = g_particles[area.indices.y].position.xyz;
     const float3 position_c = g_particles[area.indices.z].position.xyz;
 
-    const float3 area_vector = cross(position_b - position_a, position_c - position_a);
+    const float3 edge_ab = position_b - position_a;
+    const float3 edge_ac = position_c - position_a;
+    const float3 edge_bc = position_c - position_b;
+    const float3 area_vector = cross(edge_ab, edge_ac);
     const float twice_area_squared = dot(area_vector, area_vector);
     const float old_lambda = g_lambda_in[area_index];
 
@@ -54,13 +57,16 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float inverse_twice_area = rsqrt(twice_area_squared);
     const float twice_area = twice_area_squared * inverse_twice_area;
     const float3 normal = area_vector * inverse_twice_area;
-    const float3 gradient_a = 0.5f * cross(position_b - position_c, normal);
-    const float3 gradient_b = 0.5f * cross(position_c - position_a, normal);
-    const float3 gradient_c = 0.5f * cross(position_a - position_b, normal);
+    const float3 gradient_a = -0.5f * cross(edge_bc, normal);
+    const float3 gradient_b = 0.5f * cross(edge_ac, normal);
+    const float3 gradient_c = -0.5f * cross(edge_ab, normal);
 
     const float constraint = 0.5f * twice_area - area.rest_area;
-    const float denominator = dot(gradient_a, gradient_a)
-        + dot(gradient_b, gradient_b) + dot(gradient_c, gradient_c) + alpha;
+
+    // The triangle normal is perpendicular to every edge, so
+    // |cross(edge, normal)|^2 == |edge|^2 for the unit normal.
+    const float denominator = 0.25f * (
+        dot(edge_ab, edge_ab) + dot(edge_ac, edge_ac) + dot(edge_bc, edge_bc)) + alpha;
     const float delta_lambda = (-constraint - alpha * old_lambda) / max(denominator, 1.0e-9f);
     const float scaled_lambda = delta_lambda * relaxation;
     const uint correction_index = edge_count + area_index * 3u;
