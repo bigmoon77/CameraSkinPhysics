@@ -1424,10 +1424,10 @@ namespace csp
     {
         const float clamped_delta_time = std::clamp(delta_time, 1.0f / 240.0f, 1.0f / 30.0f);
         const std::uint32_t particle_groups = (compute_->vertex_count + 255u) / 256u;
-        const std::uint32_t edge_groups = (compute_->edge_count + 255u) / 256u;
+        const std::uint32_t edge_groups = (compute_->edge_count + 127u) / 128u;
         const std::uint32_t triangle_groups = (compute_->triangle_count + 255u) / 256u;
         const std::uint32_t area_solve_groups = (compute_->triangle_count + 127u) / 128u;
-        const std::uint32_t bending_groups = (compute_->bending_count + 255u) / 256u;
+        const std::uint32_t bending_groups = (compute_->bending_count + 127u) / 128u;
 
         std::uint32_t camera_dispatch_index = 0;
         for (compute_state::camera_gpu_body& body : compute_->camera_bodies)
