@@ -1801,12 +1801,15 @@ namespace csp
                 contact_apply_ticks = (timestamps[10] - timestamps[9])
                     + (timestamps[12] - timestamps[11]);
         }
-        std::uint64_t post_collision_skinning_ticks = 0;
+        std::uint64_t post_collision_skinning_body0_ticks = 0;
+        std::uint64_t post_collision_skinning_body1_ticks = 0;
         if (!simulation_paused_)
         {
-            post_collision_skinning_ticks = (timestamps[14] - timestamps[13])
-                + (timestamps[16] - timestamps[15]);
+            post_collision_skinning_body0_ticks = timestamps[14] - timestamps[13];
+            post_collision_skinning_body1_ticks = timestamps[16] - timestamps[15];
         }
+        const std::uint64_t post_collision_skinning_ticks =
+            post_collision_skinning_body0_ticks + post_collision_skinning_body1_ticks;
         std::uint64_t camera_edge_ticks = 0;
         std::uint64_t camera_area_ticks = 0;
         std::uint64_t camera_bending_ticks = 0;
@@ -1836,9 +1839,9 @@ namespace csp
         performance_metrics_.gpu_collision_compute_ms = static_cast<double>(collision_compute_ticks) * ticks_to_ms;
         performance_metrics_.gpu_contact_apply_ms = static_cast<double>(contact_apply_ticks) * ticks_to_ms;
         performance_metrics_.gpu_post_collision_skinning_body0_ms =
-            static_cast<double>(timestamps[14] - timestamps[13]) * ticks_to_ms;
+            static_cast<double>(post_collision_skinning_body0_ticks) * ticks_to_ms;
         performance_metrics_.gpu_post_collision_skinning_body1_ms =
-            static_cast<double>(timestamps[16] - timestamps[15]) * ticks_to_ms;
+            static_cast<double>(post_collision_skinning_body1_ticks) * ticks_to_ms;
         performance_metrics_.gpu_post_collision_skinning_ms =
             static_cast<double>(post_collision_skinning_ticks) * ticks_to_ms;
         performance_metrics_.gpu_render_ms = static_cast<double>(render_ticks) * ticks_to_ms;
