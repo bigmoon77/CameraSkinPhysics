@@ -50,6 +50,8 @@ namespace csp
         double gpu_collision_ms = 0.0;
         double gpu_collision_compute_ms = 0.0;
         double gpu_contact_apply_ms = 0.0;
+        double gpu_post_collision_skinning_body0_ms = 0.0;
+        double gpu_post_collision_skinning_body1_ms = 0.0;
         double gpu_post_collision_skinning_ms = 0.0;
         double gpu_render_ms = 0.0;
         double gpu_total_ms = 0.0;
