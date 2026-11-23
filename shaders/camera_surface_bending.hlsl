@@ -13,9 +13,8 @@ struct BendingConstraint
 
 StructuredBuffer<Particle> g_particles : register(t0);
 StructuredBuffer<BendingConstraint> g_hinges : register(t1);
-StructuredBuffer<float> g_lambda_in : register(t2);
 RWStructuredBuffer<float3> g_corrections : register(u0);
-RWStructuredBuffer<float> g_lambda_out : register(u1);
+RWStructuredBuffer<float> g_lambdas : register(u1);
 
 cbuffer BendingConstants : register(b0)
 {
@@ -40,12 +39,12 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const Particle opposite_b = g_particles[hinge.indices.w];
     const float3 delta = opposite_a.position.xyz - opposite_b.position.xyz;
     const float current_distance = length(delta);
-    const float old_lambda = g_lambda_in[hinge_index];
+    const float old_lambda = g_lambdas[hinge_index];
     const uint correction_base = edge_count + area_count * 3u + hinge_index * 2u;
 
     if (current_distance < 1.0e-8f || hinge.rest_distance < 1.0e-8f)
     {
-        g_lambda_out[hinge_index] = old_lambda;
+        g_lambdas[hinge_index] = old_lambda;
         g_corrections[correction_base + 0u] = 0.0f;
         g_corrections[correction_base + 1u] = 0.0f;
         return;
@@ -57,7 +56,7 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     const float scaled_lambda = delta_lambda * relaxation;
     const float3 gradient = delta / current_distance;
 
-    g_lambda_out[hinge_index] = old_lambda + scaled_lambda;
+    g_lambdas[hinge_index] = old_lambda + scaled_lambda;
     g_corrections[correction_base + 0u] = gradient * scaled_lambda;
     g_corrections[correction_base + 1u] = -gradient * scaled_lambda;
 }
