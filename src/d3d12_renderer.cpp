@@ -1485,6 +1485,10 @@ namespace csp
             std::uint32_t edge_lambda_read = 0;
             std::uint32_t area_lambda_read = 0;
             std::uint32_t bending_lambda_read = 0;
+            const float inverse_delta_time_squared =
+                1.0f / std::max(clamped_delta_time * clamped_delta_time, 1.0e-8f);
+            const float edge_alpha = simulation_parameters_.edge_compliance * inverse_delta_time_squared;
+            const float area_alpha = simulation_parameters_.area_compliance * inverse_delta_time_squared;
             for (std::uint32_t iteration = 0; iteration < simulation_parameters_.solver_iterations; ++iteration)
             {
                 if (body.correction_is_srv)
@@ -1509,8 +1513,7 @@ namespace csp
                     compute_->edge_count, sizeof(float));
 
                 const tetrahedron_constants edge_constants{
-                    compute_->edge_count, clamped_delta_time, simulation_parameters_.edge_relaxation,
-                    simulation_parameters_.edge_compliance
+                    compute_->edge_count, edge_alpha, simulation_parameters_.edge_relaxation, 0.0f
                 };
                 const std::uint32_t query_base = 13u + camera_dispatch_index * 8u;
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query_base);
@@ -1533,8 +1536,7 @@ namespace csp
                     compute_->triangle_count, sizeof(float));
                 const camera_area_constants area_constants{
                     compute_->triangle_count, compute_->edge_count,
-                    clamped_delta_time, simulation_parameters_.edge_relaxation,
-                    simulation_parameters_.area_compliance
+                    area_alpha, simulation_parameters_.edge_relaxation, 0.0f
                 };
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query_base + 2u);
                 dispatch_compute(compute_->camera_surface_area_pipeline.Get(), area_table,
