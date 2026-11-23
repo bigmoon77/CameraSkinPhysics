@@ -1426,6 +1426,7 @@ namespace csp
         const std::uint32_t particle_groups = (compute_->vertex_count + 255u) / 256u;
         const std::uint32_t edge_groups = (compute_->edge_count + 255u) / 256u;
         const std::uint32_t triangle_groups = (compute_->triangle_count + 255u) / 256u;
+        const std::uint32_t area_solve_groups = (compute_->triangle_count + 127u) / 128u;
         const std::uint32_t bending_groups = (compute_->bending_count + 255u) / 256u;
 
         std::uint32_t camera_dispatch_index = 0;
@@ -1524,7 +1525,7 @@ namespace csp
                 };
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query_base + 2u);
                 dispatch_compute(compute_->camera_surface_area_pipeline.Get(), area_table,
-                    &area_constants, 5, triangle_groups);
+                    &area_constants, 5, area_solve_groups);
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query_base + 3u);
                 uav_barrier(command_list_.Get(), body.area_lambdas[0].Get());
                 command_list_->EndQuery(timestamp_query_heap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query_base + 4u);
