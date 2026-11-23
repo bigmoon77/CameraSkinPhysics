@@ -17,7 +17,7 @@ namespace csp
             << "camera_edge_solve_ms,camera_area_solve_ms,camera_bending_solve_ms,"
             << "camera_gather_ms,gpu_depth_capture_ms,"
             << "gpu_collision_ms,gpu_collision_compute_ms,gpu_contact_apply_ms,"
-            << "gpu_render_ms,gpu_total_ms,gpu_fps,particle_count,"
+            << "gpu_post_collision_skinning_ms,gpu_render_ms,gpu_total_ms,gpu_fps,particle_count,"
             << "tetrahedron_count,solver_buffer_bytes,resident_simulation_buffer_bytes,"
             << "solver_iterations,edge_relaxation,max_correction,particle_radius,pushout,"
             << "velocity_friction,restitution,contact_band,shape_matching_strength,capture_resolution\n";
@@ -34,7 +34,7 @@ namespace csp
         double camera_bending_solve_ms, double camera_gather_ms,
         double gpu_depth_capture_ms, double gpu_collision_ms,
         double gpu_collision_compute_ms, double gpu_contact_apply_ms,
-        double gpu_render_ms, std::uint64_t simulation_particle_count,
+        double gpu_post_collision_skinning_ms, double gpu_render_ms, std::uint64_t simulation_particle_count,
         std::uint64_t tetrahedron_count, std::uint64_t solver_buffer_bytes,
         std::uint64_t resident_simulation_buffer_bytes, std::uint32_t solver_iterations,
         float edge_relaxation, float max_correction, float particle_radius, float pushout,
@@ -52,7 +52,8 @@ namespace csp
             << camera_bending_solve_ms << ',' << camera_gather_ms << ','
             << gpu_depth_capture_ms << ','
             << gpu_collision_ms << ',' << gpu_collision_compute_ms << ','
-            << gpu_contact_apply_ms << ',' << gpu_render_ms << ',' << gpu_total_ms << ','
+            << gpu_contact_apply_ms << ',' << gpu_post_collision_skinning_ms << ','
+            << gpu_render_ms << ',' << gpu_total_ms << ','
             << gpu_fps << ',' << simulation_particle_count << ',' << tetrahedron_count << ','
             << solver_buffer_bytes << ',' << resident_simulation_buffer_bytes << ','
             << solver_iterations << ',' << edge_relaxation << ',' << max_correction << ','
