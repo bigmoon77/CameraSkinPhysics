@@ -207,7 +207,9 @@ namespace
             << metrics.gpu_collision_ms << L" ms    \u63cf\u753b " << metrics.gpu_render_ms << L" ms\n"
             << L"  Collision compute " << metrics.gpu_collision_compute_ms
             << L" ms    Contact apply " << metrics.gpu_contact_apply_ms << L" ms\n"
-            << L"  Post-collision skinning " << metrics.gpu_post_collision_skinning_ms << L" ms\n"
+            << L"  Post-collision skinning body 0 " << metrics.gpu_post_collision_skinning_body0_ms
+            << L" ms    body 1 " << metrics.gpu_post_collision_skinning_body1_ms
+            << L" ms    total " << metrics.gpu_post_collision_skinning_ms << L" ms\n"
             << L"\u5236\u7d04\u8a08\u7b97 " << metrics.camera_constraint_solve_ms << L" ms    \u88dc\u6b63\u96c6\u7d04 "
             << metrics.camera_gather_ms << L" ms";
         SetWindowTextW(performance_label, text.str().c_str());
