@@ -4,13 +4,6 @@ struct Particle
     float4 velocity;
 };
 
-struct SurfaceEdge
-{
-    uint2 indices;
-    float rest_length;
-    float compliance;
-};
-
 StructuredBuffer<float4> g_corrections : register(t0);
 StructuredBuffer<uint2> g_edge_ranges : register(t1);
 StructuredBuffer<uint> g_incident_neighbors : register(t2);
