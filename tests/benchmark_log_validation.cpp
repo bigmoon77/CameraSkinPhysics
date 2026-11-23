@@ -88,8 +88,12 @@ int main()
         "CSV header must include collision compute time");
     check(header.find("gpu_contact_apply_ms") != std::string::npos,
         "CSV header must include contact apply time");
+    check(header.find("gpu_post_collision_skinning_body0_ms") != std::string::npos,
+        "CSV header must include body 0 post-collision skinning time");
+    check(header.find("gpu_post_collision_skinning_body1_ms") != std::string::npos,
+        "CSV header must include body 1 post-collision skinning time");
     check(header.find("gpu_post_collision_skinning_ms") != std::string::npos,
-        "CSV header must include post-collision skinning time");
+        "CSV header must include aggregate post-collision skinning time");
     check(header.find("capture_resolution") != std::string::npos,
         "CSV header must include collision capture resolution");
     check(header.find("gpu_total_ms") != std::string::npos, "CSV header must include total GPU time");
@@ -106,7 +110,7 @@ int main()
     check(extra.empty(), "CSV must contain exactly one data row");
 
     const std::vector<std::string> columns = split_csv_line(row);
-    check(columns.size() == 33, "CSV data row must contain thirty-one columns");
+    check(columns.size() == 33, "CSV data row must contain thirty-three columns");
     check(parse_number(columns, 0) == 1.0, "frame index must be recorded");
     check(std::abs(parse_number(columns, 2) - 100.0) < 1.0e-9,
         "CPU FPS must be derived from CPU frame time");
