@@ -265,6 +265,7 @@ namespace csp
             bool area_lambda_zero_is_srv = false;
             bool bending_lambda_zero_is_srv = false;
             bool shape_transforms_is_srv = false;
+            bool face_normals_is_srv = false;
             bool vertex_is_input_buffer = false;
             float center_x = 0.0f;
         };
@@ -1686,8 +1687,12 @@ namespace csp
             body.vertex_is_input_buffer = false;
         }
 
-        transition_resource(body.face_normals.Get(),
-            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        if (body.face_normals_is_srv)
+        {
+            transition_resource(body.face_normals.Get(),
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            body.face_normals_is_srv = false;
+        }
         const std::uint32_t face_table = reserve_descriptor_table();
         clear_descriptor_table(face_table);
         write_buffer_srv(face_table, 0, body.particles[body.particle_read].Get(),
@@ -1701,6 +1706,7 @@ namespace csp
             face_table, &triangle_count, 1, (triangle_count + 255u) / 256u);
         transition_resource(body.face_normals.Get(),
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        body.face_normals_is_srv = true;
 
         const std::uint32_t table = reserve_descriptor_table();
         clear_descriptor_table(table);
