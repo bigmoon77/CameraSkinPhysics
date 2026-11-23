@@ -57,9 +57,10 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
         correction += g_surface_corrections[correction_index];
     }
 
-    const float correction_length = length(correction);
-    if (correction_length > max_correction)
-        correction *= max_correction / correction_length;
+    const float correction_length_squared = dot(correction, correction);
+    const float max_correction_squared = max_correction * max_correction;
+    if (correction_length_squared > max_correction_squared)
+        correction *= max_correction * rsqrt(correction_length_squared);
 
     particle.position.xyz += correction;
     particle.velocity.xyz += correction / max(delta_time, 1.0e-6f);
