@@ -257,6 +257,7 @@ namespace csp
             std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> bending_lambdas;
             Microsoft::WRL::ComPtr<ID3D12Resource> shape_cluster_transforms;
             Microsoft::WRL::ComPtr<ID3D12Resource> vertices;
+            Microsoft::WRL::ComPtr<ID3D12Resource> face_normals;
             D3D12_VERTEX_BUFFER_VIEW vertex_view{};
             std::uint32_t particle_read = 0;
             bool correction_is_srv = false;
@@ -323,6 +324,7 @@ namespace csp
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_area_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_bending_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_gather_pipeline;
+        Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_face_normals_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_skin_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_shape_build_pipeline;
         Microsoft::WRL::ComPtr<ID3D12PipelineState> camera_surface_shape_apply_pipeline;
@@ -738,6 +740,7 @@ namespace csp
             && create_pipeline(L"camera_surface_area.dxil", compute_->camera_surface_area_pipeline)
             && create_pipeline(L"camera_surface_bending.dxil", compute_->camera_surface_bending_pipeline)
             && create_pipeline(L"camera_surface_gather.dxil", compute_->camera_surface_gather_pipeline)
+            && create_pipeline(L"camera_surface_face_normals.dxil", compute_->camera_surface_face_normals_pipeline)
             && create_pipeline(L"camera_surface_skin.dxil", compute_->camera_surface_skin_pipeline)
             && create_pipeline(L"camera_surface_shape_build.dxil", compute_->camera_surface_shape_build_pipeline)
             && create_pipeline(L"camera_surface_shape_apply.dxil", compute_->camera_surface_shape_apply_pipeline);
@@ -970,11 +973,15 @@ namespace csp
             }
             camera_body.vertices = create_buffer(device_.Get(), vertex_bytes, D3D12_HEAP_TYPE_DEFAULT,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            const UINT64 face_normal_bytes =
+                static_cast<UINT64>(compute_->triangle_count) * sizeof(DirectX::XMFLOAT4);
+            camera_body.face_normals = create_buffer(device_.Get(), face_normal_bytes, D3D12_HEAP_TYPE_DEFAULT,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             if (!camera_body.edge_corrections || !camera_body.edge_lambdas[0]
                 || !camera_body.edge_lambdas[1] || !camera_body.area_lambdas[0]
                 || !camera_body.area_lambdas[1] || !camera_body.bending_lambdas[0]
                 || !camera_body.bending_lambdas[1] || !camera_body.shape_cluster_transforms
-                || !camera_body.vertices) return false;
+                || !camera_body.vertices || !camera_body.face_normals) return false;
 
             camera_body.vertex_view.BufferLocation = camera_body.vertices->GetGPUVirtualAddress();
             camera_body.vertex_view.SizeInBytes = static_cast<UINT>(vertex_bytes);
@@ -1050,6 +1057,7 @@ namespace csp
             compute_->camera_surface_buffer_bytes += resource_bytes(body.bending_lambdas[1].Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.shape_cluster_transforms.Get());
             compute_->camera_surface_buffer_bytes += resource_bytes(body.vertices.Get());
+            compute_->camera_surface_buffer_bytes += resource_bytes(body.face_normals.Get());
         }
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edges.Get());
         compute_->camera_surface_buffer_bytes += resource_bytes(compute_->surface_edge_ranges.Get());
@@ -1678,6 +1686,22 @@ namespace csp
             body.vertex_is_input_buffer = false;
         }
 
+        transition_resource(body.face_normals.Get(),
+            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        const std::uint32_t face_table = reserve_descriptor_table();
+        clear_descriptor_table(face_table);
+        write_buffer_srv(face_table, 0, body.particles[body.particle_read].Get(),
+            compute_->vertex_count, sizeof(simulation_particle));
+        write_buffer_srv(face_table, 1, compute_->surface_triangle_areas.Get(),
+            compute_->triangle_count, sizeof(triangle_area_constraint));
+        write_buffer_uav(face_table, 0, body.face_normals.Get(),
+            compute_->triangle_count, sizeof(DirectX::XMFLOAT4));
+        const std::uint32_t triangle_count = compute_->triangle_count;
+        dispatch_compute(compute_->camera_surface_face_normals_pipeline.Get(),
+            face_table, &triangle_count, 1, (triangle_count + 255u) / 256u);
+        transition_resource(body.face_normals.Get(),
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
         const std::uint32_t table = reserve_descriptor_table();
         clear_descriptor_table(table);
         write_buffer_srv(table, 0, body.particles[body.particle_read].Get(),
@@ -1686,8 +1710,8 @@ namespace csp
             compute_->vertex_count, sizeof(mesh_uint2));
         write_buffer_srv(table, 2, compute_->incident_surface_triangles.Get(),
             compute_->triangle_count * 3u, sizeof(std::uint32_t));
-        write_buffer_srv(table, 3, compute_->surface_triangle_areas.Get(),
-            compute_->triangle_count, sizeof(triangle_area_constraint));
+        write_buffer_srv(table, 3, body.face_normals.Get(),
+            compute_->triangle_count, sizeof(DirectX::XMFLOAT4));
         write_buffer_uav(table, 0, body.vertices.Get(), compute_->vertex_count, sizeof(vertex));
         const skin_constants constants{
             compute_->vertex_count, {body.center_x, 0.0f, 0.0f}
