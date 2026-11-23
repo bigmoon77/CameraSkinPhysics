@@ -21,9 +21,9 @@ cbuffer AreaConstants : register(b0)
 {
     uint area_count;
     uint edge_count;
-    float delta_time;
+    float alpha;
     float relaxation;
-    float compliance;
+    float padding;
 };
 
 [numthreads(256, 1, 1)]
@@ -33,40 +33,40 @@ void main(uint3 dispatch_id : SV_DispatchThreadID)
     if (area_index >= area_count) return;
 
     const AreaConstraint area = g_areas[area_index];
-    const Particle particle_a = g_particles[area.indices.x];
-    const Particle particle_b = g_particles[area.indices.y];
-    const Particle particle_c = g_particles[area.indices.z];
+    const float3 position_a = g_particles[area.indices.x].position.xyz;
+    const float3 position_b = g_particles[area.indices.y].position.xyz;
+    const float3 position_c = g_particles[area.indices.z].position.xyz;
 
-    const float3 edge_ab = particle_b.position.xyz - particle_a.position.xyz;
-    const float3 edge_ac = particle_c.position.xyz - particle_a.position.xyz;
-    const float3 area_vector = cross(edge_ab, edge_ac);
-    const float twice_area = length(area_vector);
+    const float3 area_vector = cross(position_b - position_a, position_c - position_a);
+    const float twice_area_squared = dot(area_vector, area_vector);
     const float old_lambda = g_lambda_in[area_index];
 
-    if (twice_area < 1.0e-8f || area.rest_area < 1.0e-10f)
+    if (twice_area_squared < 1.0e-16f || area.rest_area < 1.0e-10f)
     {
         g_lambda_out[area_index] = old_lambda;
-        g_corrections[edge_count + area_index * 3u + 0u] = 0.0f;
-        g_corrections[edge_count + area_index * 3u + 1u] = 0.0f;
-        g_corrections[edge_count + area_index * 3u + 2u] = 0.0f;
+        const uint correction_index = edge_count + area_index * 3u;
+        g_corrections[correction_index + 0u] = 0.0f;
+        g_corrections[correction_index + 1u] = 0.0f;
+        g_corrections[correction_index + 2u] = 0.0f;
         return;
     }
 
-    const float3 normal = area_vector / twice_area;
-    const float3 gradient_a = 0.5f * cross(particle_b.position.xyz - particle_c.position.xyz, normal);
-    const float3 gradient_b = 0.5f * cross(particle_c.position.xyz - particle_a.position.xyz, normal);
-    const float3 gradient_c = 0.5f * cross(particle_a.position.xyz - particle_b.position.xyz, normal);
+    const float inverse_twice_area = rsqrt(twice_area_squared);
+    const float twice_area = twice_area_squared * inverse_twice_area;
+    const float3 normal = area_vector * inverse_twice_area;
+    const float3 gradient_a = 0.5f * cross(position_b - position_c, normal);
+    const float3 gradient_b = 0.5f * cross(position_c - position_a, normal);
+    const float3 gradient_c = 0.5f * cross(position_a - position_b, normal);
 
-    const float current_area = 0.5f * twice_area;
-    const float constraint = current_area - area.rest_area;
-    const float alpha = compliance / max(delta_time * delta_time, 1.0e-8f);
+    const float constraint = 0.5f * twice_area - area.rest_area;
     const float denominator = dot(gradient_a, gradient_a)
         + dot(gradient_b, gradient_b) + dot(gradient_c, gradient_c) + alpha;
     const float delta_lambda = (-constraint - alpha * old_lambda) / max(denominator, 1.0e-9f);
     const float scaled_lambda = delta_lambda * relaxation;
+    const uint correction_index = edge_count + area_index * 3u;
 
     g_lambda_out[area_index] = old_lambda + scaled_lambda;
-    g_corrections[edge_count + area_index * 3u + 0u] = gradient_a * scaled_lambda;
-    g_corrections[edge_count + area_index * 3u + 1u] = gradient_b * scaled_lambda;
-    g_corrections[edge_count + area_index * 3u + 2u] = gradient_c * scaled_lambda;
+    g_corrections[correction_index + 0u] = gradient_a * scaled_lambda;
+    g_corrections[correction_index + 1u] = gradient_b * scaled_lambda;
+    g_corrections[correction_index + 2u] = gradient_c * scaled_lambda;
 }
